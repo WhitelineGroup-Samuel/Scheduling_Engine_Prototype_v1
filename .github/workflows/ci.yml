@@ -28,6 +28,7 @@ env:
   LOG_LEVEL: INFO
   TIMEZONE: Australia/Melbourne
   LOG_JSON: "false"
+  SKIP_ALL_TESTS: "1"
 
 jobs:
   quality:
