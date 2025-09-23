@@ -12,7 +12,7 @@ A production-grade **skeleton** for the Regular Rounds Scheduling Engine. This r
 - Optional: **sqlfluff** for `/sql` lint
 
 ## Quick Start
-1. **Python 3.12**: install via Homebrew or pyenv.  
+1. **Python 3.12**: install via Homebrew or pyenv.
 2. Create venv & select in VS Code:
    ```bash
    python -m venv .venv
