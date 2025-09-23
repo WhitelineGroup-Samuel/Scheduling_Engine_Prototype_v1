@@ -1,0 +1,51 @@
+# OS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.build/
+dist/
+pip-wheel-metadata/
+
+# Virtual envs
+.venv/
+venv/
+.envrc
+
+# Tools caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# VS Code logs & workspace cruft (keep JSON configs)
+.vscode/*.log
+.vscode/.ropeproject
+
+# Env & secrets
+.env
+.env.*.local
+*.key
+*.pem
+
+# Logs & temp
+logs/
+*.log
+tmp/
+.cache/
+
+# Alembic (keep versions, ignore pycache)
+migrations/versions/__pycache__/
+
+# SQL lint cache (if used)
+.sqlfluff
+
+# Mac metadata
+Icon?

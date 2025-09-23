@@ -10,5 +10,42 @@
 // =============================================================================
 {
   "version": "2.0.0",
-  "tasks": []
+  "tasks": [
+    {
+      "label": "lint",
+      "type": "shell",
+      "command": "ruff check . && black --check ."
+    },
+    {
+      "label": "typecheck",
+      "type": "shell",
+      "command": "mypy ."
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "pytest -q"
+    },
+    {
+      "label": "init-db",
+      "type": "shell",
+      "command": "alembic upgrade head",
+      "problemMatcher": []
+    },
+    {
+      "label": "seed",
+      "type": "shell",
+      "command": "python manage.py seed-data"
+    },
+    {
+      "label": "run",
+      "type": "shell",
+      "command": "python run.py"
+    },
+    {
+      "label": "diag",
+      "type": "shell",
+      "command": "python manage.py diag"
+    }
+  ]
 }
