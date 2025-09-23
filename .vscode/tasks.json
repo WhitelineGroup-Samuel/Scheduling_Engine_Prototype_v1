@@ -1,0 +1,14 @@
+// =============================================================================
+// File: .vscode/tasks.json
+// Purpose:
+//   Developer tasks to run lint, type-check, tests, migrations, seeding.
+//
+// Tasks (examples):
+//   - "init-db": alembic upgrade head
+//   - "seed": python manage.py seed-data
+//   - "lint": ruff check . && black --check .
+// =============================================================================
+{
+  "version": "2.0.0",
+  "tasks": []
+}

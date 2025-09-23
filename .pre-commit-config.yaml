@@ -1,0 +1,13 @@
+# =============================================================================
+# File: .pre-commit-config.yaml
+# Purpose:
+#   Define pre-commit hooks for formatting, linting, security checks.
+#
+# Hooks (examples):
+#   - ruff, black, isort
+#   - sqlfluff for /sql
+#   - trailing-whitespace, end-of-file-fixer
+#
+# Notes:
+#   - Install with: pre-commit install
+# =============================================================================

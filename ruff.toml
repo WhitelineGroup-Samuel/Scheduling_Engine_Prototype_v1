@@ -1,0 +1,8 @@
+# =============================================================================
+# File: ruff.toml
+# Purpose:
+#   Python linter configuration (fast, opinionated). Replaces flake8/isort.
+#
+# Responsibilities:
+#   - Select rules, line length, isort settings via Ruff.
+# =============================================================================

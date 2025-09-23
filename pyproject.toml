@@ -1,0 +1,14 @@
+# =============================================================================
+# File: pyproject.toml
+# Purpose:
+#   Central tool configuration: package metadata (if any) and dev tools
+#   (black, isort, ruff, mypy, sqlfluff, pytest). Ensures reproducible style.
+#
+# Responsibilities:
+#   - Define tool.[black|isort|ruff|mypy|pytest|sqlfluff] sections.
+#   - Pin Python version and include-only paths (app/, tests/).
+#   - Optionally declare project metadata if packaging later.
+#
+# Collaborators:
+#   - mypy.ini/ruff.toml/pytest.ini (can be embedded here or separate).
+# =============================================================================

@@ -1,0 +1,10 @@
+// =============================================================================
+// File: .vscode/settings.json
+// Purpose:
+//   VS Code workspace settings: formatter, linter integration, test discovery.
+//
+// Responsibilities:
+//   - python.defaultInterpreterPath, python.testing.pytestArgs
+//   - editor.formatOnSave, ruff/black integration
+// =============================================================================
+{}

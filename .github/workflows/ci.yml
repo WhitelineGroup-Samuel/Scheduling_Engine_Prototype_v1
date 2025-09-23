@@ -1,0 +1,12 @@
+# =============================================================================
+# File: .github/workflows/ci.yml
+# Purpose:
+#   Continuous Integration pipeline: lint -> type-check -> tests.
+#
+# Responsibilities:
+#   - Run on pull_request and push.
+#   - Cache dependencies, set up Python, run Make targets.
+#
+# Collaborators:
+#   - pyproject.toml, mypy.ini, ruff.toml, pytest.ini
+# =============================================================================
