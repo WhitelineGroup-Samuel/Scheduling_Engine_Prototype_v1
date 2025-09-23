@@ -46,6 +46,12 @@
       "label": "diag",
       "type": "shell",
       "command": "python manage.py diag"
+    },
+    {
+      "label": "test (env.test)",
+      "type": "shell",
+      "command": "pytest -q",
+      "problemMatcher": []
     }
   ]
 }
