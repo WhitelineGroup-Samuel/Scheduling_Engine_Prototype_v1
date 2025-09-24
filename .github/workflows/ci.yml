@@ -132,7 +132,7 @@ jobs:
           pip install -e ".[dev]" || true
           pip install SQLAlchemy alembic pydantic psycopg2-binary python-dotenv typer pytest pytest-cov
 
-      # Optional: Run migrations here once Alembic is wired
+      # Optional: Run Migrations here once Alembic is wired
       # - name: Alembic upgrade head
       #   run: alembic upgrade head
 
