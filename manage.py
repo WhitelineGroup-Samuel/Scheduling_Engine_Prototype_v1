@@ -1,22 +1,33 @@
 """
 ===============================================================================
 File: manage.py
-Purpose:
-  Developer-focused CLI (Typer/Click). Provides commands to initialize DB,
-  apply migrations, seed data, validate env, run diagnostics, etc.
+Purpose
+-------
+Top-level entry point for the developer CLI. Keeps itself tiny and delegates to
+Typer app defined in `app.cli.main`.
 
-Responsibilities:
-  - Register subcommands from app.cli.main (or directly).
-  - Provide --verbose / --quiet / --config flags as needed.
+Responsibilities
+----------------
+- Import `app.cli.main:app`.
+- If executed as a script (`__main__`), invoke `app()`.
+- No heavy logic here; all behavior lives in subcommand modules.
 
-Commands:
-  - check-env, init-db, seed-data, lint-sql, diag (see app/cli/*).
+Usage
+-----
+  python manage.py --help
+  python manage.py check-env
+  python manage.py init-db
+  python manage.py seed-data
+  python manage.py lint-sql
+  python manage.py diag
 
-Collaborators:
-  - app.cli.main (command router)
-  - app.config.settings, app.db.engine/session, app.db.seed
+Exit codes
+----------
+- 0 on success.
+- Non-zero per app.errors.codes via @wrap_cli_main in command handlers.
 
-Notes:
-  - Keep minimal logic here; delegate to app/cli/* modules.
+Notes
+-----
+- Ensure this file remains importable and side-effect free (besides Typer call).
 ===============================================================================
 """

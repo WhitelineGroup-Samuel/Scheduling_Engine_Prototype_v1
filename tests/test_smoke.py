@@ -15,25 +15,27 @@ What to include
 1) Imports:
    - stdlib: os, json, subprocess, sys, pathlib
    - third-party: pytest
-   - local: app.config.settings (get_settings or Settings factory), app.config.logging_config
-            app.db.healthcheck, app.db.alembic_env (for target_metadata)
+   - local: app.config.settings (get_settings/Settings),
+            app.config.logging_config (configure_logging),
+            app.db.healthcheck (ping),
+            app.db.alembic_env (target_metadata)
 
 2) Tests (all MUST be fast and side-effect free):
    - test_settings_loads_and_validates():
        * Arrange: load settings using the canonical factory (e.g., get_settings()).
-       * Assert: settings.app_env == "test"
-                settings.timezone == "Australia/Melbourne"
-                settings.log_level is parsed to expected numeric level (INFO)
-                database_url is either provided OR constructed correctly from parts
+       * Assert: settings.APP_ENV == "test"
+                settings.TIMEZONE == "Australia/Melbourne"
+                settings.LOG_LEVEL == "INFO" (or maps to logging.INFO)
+                effective database_url is either provided OR constructed correctly from parts
                 boolean parsing for LOG_JSON behaves (e.g., "false" -> False)
    - test_timezone_available():
-       * Assert that zoneinfo.ZoneInfo(settings.timezone) is loadable and tz-aware.
+       * Assert that zoneinfo.ZoneInfo(settings.TIMEZONE) is loadable and tz-aware.
    - test_logging_config_builds_and_emits(caplog):
        * Arrange: call logging_config.configure_logging(settings).
        * Act: log a test message via a named logger.
-       * Assert: caplog captured at least one record with expected fields:
-                record.levelname, record.name, record.message (or getMessage())
-                and a trace_id field present (either attached via extra or LogRecord adapter).
+       * Assert (human mode): first record has `trace_id` attribute populated.
+       * Assert (json mode): temporarily set LOG_JSON=true, reconfigure, emit one line,
+         json.loads(line) contains keys: ts, level, logger, trace_id, msg, env, app, version.
    - test_db_healthcheck_readonly():
        * Arrange: build a SQLAlchemy Engine from settings (do NOT create/drop anything).
        * Act: call healthcheck.ping(engine) which should execute SELECT-only statements.
@@ -48,17 +50,19 @@ What to include
 
 3) Markers & Performance:
    - No @pytest.mark.integration here; keep these tests < 1s cumulative where possible.
-   - Avoid writing to DB or filesystem (use tmp_path for any transient files, then clean up).
+   - Avoid writing to DB or filesystem (use tmp_path for any transient files).
 
 4) Failure messages:
    - Provide clear asserts with helpful messages so misconfigurations are obvious.
 
 Dependencies on other scripts
 -----------------------------
-- app/config/settings.py : settings factory / Pydantic Settings model
-- app/config/logging_config.py : dictConfig builder (console + optional JSON + trace_id)
+- app/config/settings.py : Pydantic Settings model and/or factory
+- app/config/logging_config.py : dictConfig builder (console + JSON + trace_id)
+- app/utils/logging_tools.py : trace id context access (implicitly via filter)
 - app/db/healthcheck.py : read-only ping implementation
 - app/db/alembic_env.py : target_metadata wiring
+- app/errors/handlers.py : map_exception/handle_cli_error used by CLI smoke if needed
 
 Notes
 -----
@@ -68,4 +72,7 @@ Notes
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Migrations not wired yet")
+# TEMP: Keep the global skip while migrations/logging are still being wired.
+pytestmark = pytest.mark.skip(
+    reason="Migrations/logging not wired yet; remove when ready."
+)

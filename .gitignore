@@ -50,3 +50,7 @@ migrations/versions/__pycache__/
 
 # Mac metadata
 Icon?
+
+docs/CODEX_PROMPTS/
+
+project_files/

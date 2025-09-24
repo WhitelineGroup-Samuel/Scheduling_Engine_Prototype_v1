@@ -1,56 +1,133 @@
 // =============================================================================
 // File: .vscode/launch.json
 // Purpose:
-//   Debug configurations for run.py and CLI commands.
+//   Debug launchers for run.py and CLI commands with consistent env selection.
 //
-// Configs (examples):
-//   - "Run Application" -> module: run.py
-//   - "Manage CLI" -> module: manage.py with args
+// Conventions:
+//   - Dev launchers set:  APP_ENV=dev  and ENV_FILE=.env
+//   - Test launcher sets: APP_ENV=test and ENV_FILE=.env.test
+//   - We use `env` (not envFile) so our custom loader reads ENV_FILE explicitly.
 // =============================================================================
 {
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Application (run.py)",
-      "type": "python",
+      "name": "Run: run.py (dev, banner + db check)",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/run.py",
+      "args": [],
       "console": "integratedTerminal",
-      "envFile": "${workspaceFolder}/.env"
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "dev",
+        "ENV_FILE": "${workspaceFolder}/.env"
+      }
     },
     {
-      "name": "Manage CLI: diag",
-      "type": "python",
+      "name": "Run: run.py (dev, no banner, skip db)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/run.py",
+      "args": [
+        "--no-banner",
+        "--skip-db-check"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "dev",
+        "ENV_FILE": "${workspaceFolder}/.env"
+      }
+    },
+    {
+      "name": "CLI: check-env (dev)",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/manage.py",
       "args": [
-        "diag"
+        "check-env",
+        "-v"
       ],
       "console": "integratedTerminal",
-      "envFile": "${workspaceFolder}/.env"
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "dev",
+        "ENV_FILE": "${workspaceFolder}/.env"
+      }
     },
     {
-      "name": "Manage CLI: check-env",
-      "type": "python",
+      "name": "CLI: init-db (upgrade head)",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/manage.py",
       "args": [
-        "check-env"
+        "init-db"
       ],
       "console": "integratedTerminal",
-      "envFile": "${workspaceFolder}/.env"
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "dev",
+        "ENV_FILE": "${workspaceFolder}/.env"
+      }
     },
     {
-      "name": "Pytest (current file)",
-      "type": "python",
+      "name": "CLI: seed-data (dry-run)",
+      "type": "debugpy",
       "request": "launch",
-      "module": "pytest",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "seed-data"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "dev",
+        "ENV_FILE": "${workspaceFolder}/.env"
+      }
+    },
+    {
+      "name": "CLI: seed-data (apply)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/manage.py",
+      "args": [
+        "seed-data",
+        "--apply"
+      ],
+      "console": "integratedTerminal",
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "dev",
+        "ENV_FILE": "${workspaceFolder}/.env"
+      }
+    },
+    {
+      "name": "Tests: pytest (uses .env.test automatically)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/pytest",
       "args": [
         "-q",
-        "${file}"
+        "-ra"
       ],
       "console": "integratedTerminal",
-      "envFile": "${workspaceFolder}/.env"
+      "justMyCode": true,
+      "env": {
+        "APP_ENV": "test",
+        "ENV_FILE": "${workspaceFolder}/.env.test",
+        "PYTEST_ADDOPTS": "--maxfail=1"
+      }
+    },
+    {
+      "name": "Attach: Python process",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "localhost",
+        "port": 5678
+      },
+      "justMyCode": true
     }
   ]
 }
