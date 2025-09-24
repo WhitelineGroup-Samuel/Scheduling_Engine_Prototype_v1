@@ -48,3 +48,7 @@ Notes
 - Until a real model exists, you can keep this file with TODO tests or skipped tests.
 - Once the first model lands, enable real CRUD tests here.
 """
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Migrations not wired yet")

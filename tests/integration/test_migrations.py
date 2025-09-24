@@ -41,3 +41,7 @@ Notes
 - If migrations are not ready yet, mark these tests with @pytest.mark.skip(reason="...") or conditionally skip.
 - Once models exist, add explicit assertions that expected tables/columns/indexes exist after upgrade.
 """
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Migrations not wired yet")
