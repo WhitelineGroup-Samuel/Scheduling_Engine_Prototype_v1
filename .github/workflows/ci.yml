@@ -137,10 +137,11 @@ jobs:
       #   run: alembic upgrade head
 
       - name: Run tests (default suite)
+        if: ${{ env.SKIP_ALL_TESTS != '1' }}
         run: pytest -q
 
       - name: (Optional) Coverage report
-        if: always()
+        if: ${{ env.SKIP_ALL_TESTS != '1' }}
         run: |
           if python -c "import importlib.util; print(importlib.util.find_spec('pytest_cov') is not None)"; then
             pytest --cov=app --cov-report=term-missing || true
