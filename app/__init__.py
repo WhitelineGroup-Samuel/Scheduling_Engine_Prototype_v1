@@ -19,8 +19,9 @@ Responsibilities:
 Must Include:
   - __version__: str — semantic version for the package skeleton (e.g., "0.1.0").
   - __description__: short human-readable description.
-  - A thin get_settings() shim that imports from app.config.settings *inside*
-    the function to avoid circular imports.
+  - def get_settings():
+      Lazy import `from app.config.settings import get_settings` INSIDE the function
+      and return the result. This avoids cycles and heavy imports at package import.
   - Optional short-hands to frequently used items that are side-effect free
     (e.g., error classes). Keep this list intentionally small.
 
@@ -38,6 +39,11 @@ Collaborators:
   - app.config.settings (for get_settings())
   - app.errors.exceptions (optional re-exports)
   - app.errors.codes (optional re-exports)
+
+Used by
+-------
+  - Banners/diagnostics in run.py and CLI.
+  - Tests may import `app` to assert metadata and lazy behavior.
 
 Side-Effects Policy:
   - This file must remain side-effect free:
