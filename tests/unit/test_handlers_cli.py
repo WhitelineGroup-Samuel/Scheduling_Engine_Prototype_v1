@@ -1,80 +1,167 @@
-"""
-TEST DESCRIPTION BLOCK — tests/unit/test_handlers_cli.py
+"""Unit tests for CLI error handling utilities and logging behaviour."""
 
-Purpose
--------
-Verify CLI error handling emits **one structured log line** with the proper
-severity and returns the correct exit code, using:
-- app/errors/handlers.py: handle_cli_error, wrap_cli_main, level_for, exc_info_for
-- app/errors/exceptions.py: AppError subclasses
-- app/config/logging_config.py: configured logger (trace_id injected by filters)
+from __future__ import annotations
 
-Scope
------
-Unit tests (no DB). Use a real logger configured via configure_logging(settings),
-but rely on pytest's `caplog` to capture records. Avoid filesystem and network.
-
-What to include
----------------
-1) Imports:
-   - stdlib: sys, functools
-   - third-party: pytest
-   - local:
-       * app.errors.handlers: handle_cli_error, wrap_cli_main, level_for
-       * app.errors.exceptions: ValidationError, DBConnectionError, UnknownError
-       * app.errors.codes: ErrorCode (optional for explicit code checks)
-       * app.config.logging_config: configure_logging
-       * app.config.settings: get_settings or Settings factory
-
-2) Fixture or setup:
-   - Build a Settings object with APP_ENV="test", LOG_JSON=false (human) for readability.
-     (Optionally run a second test with LOG_JSON=true to ensure JSON output parses.)
-   - Call configure_logging(settings) and get a named logger (e.g., "app.tests.handlers").
-
-3) Tests:
-   - test_handle_cli_error_validation_returns_64_and_no_exc_info(caplog):
-       * err = ValidationError("bad input", context={"field": "name"})
-       * rc = handle_cli_error(err, logger)
-       * Assert rc == 64
-       * caplog captured 1+ record with level ERROR (no traceback)
-       * record has attributes: code, exit_code; filter should inject trace_id
-   - test_handle_cli_error_db_connection_critical_has_exc_info(caplog):
-       * err = DBConnectionError("cannot connect", context={"host":"localhost","port":5432})
-       * rc == 65
-       * assert CRITICAL level and exc_info was included (caplog.records[0].exc_info not None)
-   - test_wrap_cli_main_converts_exception_to_system_exit(monkeypatch, caplog):
-       * Define a dummy function that raises Exception("boom")
-       * Decorate with @wrap_cli_main
-       * Call and assert SystemExit with code 1 (UnknownError default)
-       * Assert one log record emitted at CRITICAL with code SENG-UNKNOWN-000
-   - (Optional) test_json_mode_emits_parseable_json(caplog):
-       * Reconfigure with LOG_JSON=true and re-run one of the above tests, then
-         parse the emitted log line as JSON and assert keys:
-         ts, level, logger, trace_id, msg, code, exit_code, env, app, version.
-
-Markers & Performance
----------------------
-- No @pytest.mark.integration.
-- Keep each test < 100ms. Avoid slow stack traces by disabling exc_info for expected errors.
-
-Dependencies on other scripts
------------------------------
-- app/errors/handlers.py
-- app/errors/exceptions.py
-- app/errors/codes.py
-- app/config/logging_config.py
-- app/config/settings.py
-- app/utils/logging_tools.py (indirectly via logging filters)
-
-Notes
------
-- If log capture shows multiple records, ensure your logger is not propagating to root
-  with duplicate handlers (configure_logging should set propagate=False or attach once).
-"""
+import functools
+import json
+import logging
+import sys
 
 import pytest
 
-# TEMP: Remove this global skip once CLI error handler is implemented.
-pytestmark = pytest.mark.skip(
-    reason="CLI error handler not implemented yet; remove when ready."
-)
+from app.config.logging_config import configure_logging
+from app.config.settings import Settings
+from app.errors.codes import ErrorCode
+from app.errors.exceptions import DBConnectionError, ValidationError
+from app.errors.handlers import handle_cli_error, level_for, wrap_cli_main
+
+setattr(Settings, "ENV_PREFIX", "")
+
+pytestmark = pytest.mark.unit
+
+
+def _make_settings(*, log_json: bool) -> Settings:
+    """Return a settings instance populated with deterministic values for tests."""
+
+    return Settings.model_construct(
+        APP_NAME="scheduling-engine",
+        APP_VERSION="0.1.0",
+        APP_ENV="test",
+        LOG_LEVEL="INFO",
+        LOG_JSON=log_json,
+        TIMEZONE="Australia/Melbourne",
+        DATABASE_URL="postgresql+psycopg://user:pass@localhost:5432/scheduling_test",
+    )
+
+
+@pytest.fixture
+def settings() -> Settings:
+    """Return a copy of the application settings for test isolation."""
+
+    return _make_settings(log_json=False)
+
+
+@pytest.fixture
+def configured_logger(settings: Settings) -> logging.Logger:
+    """Configure logging for tests and return a dedicated logger instance."""
+
+    configure_logging(settings, force_json=False, force_level="INFO")
+    return logging.getLogger("app.tests.handlers")
+
+
+def test_handle_cli_error_validation_returns_64_and_no_exc_info(
+    configured_logger: logging.Logger, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Validation errors should log once at ERROR level without tracebacks."""
+
+    caplog.clear()
+    caplog.set_level(logging.ERROR, logger=configured_logger.name)
+    err = ValidationError("bad input", context={"field": "name"})
+
+    handler = functools.partial(handle_cli_error, logger=configured_logger)
+    exit_code = handler(err)
+
+    assert exit_code == ErrorCode.VALIDATION_ERROR.exit_code
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == level_for(ErrorCode.VALIDATION_ERROR.severity)
+    assert not record.exc_info
+    assert record.code == ErrorCode.VALIDATION_ERROR.code
+    assert record.exit_code == ErrorCode.VALIDATION_ERROR.exit_code
+    assert getattr(record, "trace_id")
+
+
+def test_handle_cli_error_db_connection_critical_has_exc_info(
+    configured_logger: logging.Logger, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Critical database errors should include traceback information."""
+
+    caplog.clear()
+    caplog.set_level(logging.CRITICAL, logger=configured_logger.name)
+    err = DBConnectionError(
+        "cannot connect",
+        context={"host": "localhost", "port": 5432},
+    )
+
+    exit_code = handle_cli_error(err, configured_logger)
+
+    assert exit_code == ErrorCode.DB_CONNECTION_ERROR.exit_code
+    assert len(caplog.records) == 1
+    record = caplog.records[0]
+    assert record.levelno == level_for(ErrorCode.DB_CONNECTION_ERROR.severity)
+    assert record.exc_info is not None
+    assert record.code == ErrorCode.DB_CONNECTION_ERROR.code
+    assert record.exit_code == ErrorCode.DB_CONNECTION_ERROR.exit_code
+
+
+def test_wrap_cli_main_converts_exception_to_system_exit(
+    settings: Settings, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Unhandled exceptions are converted to :class:`SystemExit` with logging."""
+
+    configure_logging(settings, force_json=False, force_level="INFO")
+    caplog.clear()
+
+    @wrap_cli_main
+    def boom() -> None:
+        """Raise a generic exception to trigger CLI error handling."""
+
+        raise Exception("boom")
+
+    assert boom.__name__ == "boom"
+
+    capture_handler: list[logging.LogRecord] = []
+
+    class _ListHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            capture_handler.append(record)
+
+    handler = _ListHandler(level=logging.CRITICAL)
+    logger = logging.getLogger(boom.__module__)
+    logger.addHandler(handler)
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            boom()
+    finally:
+        logger.removeHandler(handler)
+
+    assert excinfo.value.code == ErrorCode.UNKNOWN_ERROR.exit_code
+    assert len(capture_handler) == 1
+    record = capture_handler[0]
+    assert record.code == ErrorCode.UNKNOWN_ERROR.code
+    assert record.levelno == level_for(ErrorCode.UNKNOWN_ERROR.severity)
+    assert record.exc_info is not None
+
+
+def test_json_mode_emits_parseable_json(capsys: pytest.CaptureFixture[str]) -> None:
+    """JSON logging mode should emit structured payloads containing expected keys."""
+
+    json_settings = _make_settings(log_json=True)
+    configure_logging(json_settings, force_json=True, force_level="INFO")
+    logger = logging.getLogger("app.tests.handlers.json")
+    logger.error(
+        "json emission test",
+        extra={
+            "code": ErrorCode.UNKNOWN_ERROR.code,
+            "exit_code": ErrorCode.UNKNOWN_ERROR.exit_code,
+            "severity": ErrorCode.UNKNOWN_ERROR.severity,
+        },
+    )
+    sys.stdout.flush()
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert lines, "Expected JSON log output"
+    payload = json.loads(lines[-1])
+    expected_keys = {
+        "ts",
+        "level",
+        "logger",
+        "trace_id",
+        "msg",
+        "code",
+        "exit_code",
+        "env",
+        "app",
+        "version",
+    }
+    assert expected_keys.issubset(payload)
