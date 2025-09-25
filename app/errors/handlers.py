@@ -10,8 +10,17 @@ codes. Used by both CLI commands and the top-level `run.py` entrypoint.
 Public API (Codex must implement)
 ---------------------------------
 - def map_exception(err: BaseException) -> "AppError":
-    Map vendor exceptions to domain errors (see Phase F Step 14 table). Default:
-    wrap in UnknownError(message=str(err), context={"type": err.__class__.__name__}).
+    - Map vendor exceptions to domain errors (see Phase F Step 14 table). Default:
+      wrap in UnknownError(message=str(err), context={"type": err.__class__.__name__}).
+    - Prefer direct type checks against SQLAlchemy exceptions if available:
+      OperationalError -> DBConnectionError
+      ProgrammingError -> DBOperationError
+      IntegrityError   -> ConflictError
+    - Import defensively:
+        try:
+            from sqlalchemy.exc import OperationalError, ProgrammingError, IntegrityError
+        except Exception:
+            OperationalError = ProgrammingError = IntegrityError = ()  # fallback no-ops
 
 - def handle_cli_error(err: BaseException, logger) -> int:
     Normalize (via map_exception unless err is already AppError),
@@ -19,20 +28,37 @@ Public API (Codex must implement)
     return `app_err.exit_code`. Use exc_info=True for CRITICAL/Unknown only.
 
 - def wrap_cli_main(func):
-    Decorator for Typer/Click command entrypoints:
+    - Decorator for Typer/Click command entrypoints:
       try: return func(...)
       except BaseException as err:
           code = handle_cli_error(err, logger)
           raise SystemExit(code)
+    - Use `functools.wraps(func)` when implementing the decorator to preserve CLI help/metadata.
 
 - def level_for(severity: str) -> int
 - def exc_info_for(app_err: "AppError") -> bool
+
+Logging levels mapping
+----------------------
+- Map severity to stdlib logging levels (note: Python uses WARNING not WARN):
+  "INFO" -> logging.INFO
+  "WARN" -> logging.WARNING
+  "ERROR" -> logging.ERROR
+  "CRITICAL" -> logging.CRITICAL
 
 Logging contract
 ----------------
 - One line per handled exception; JSON vs human selected by logging config.
 - Include extras: code, exit_code, severity, and safe `context` keys.
 - `trace_id` is injected by logging filters (Step 13).
+- Emit exactly ONE log record per handled error with:
+  logger.log(level_for(severity), message,
+             extra={"code": app_err.code,
+                    "exit_code": app_err.exit_code,
+                    "severity": app_err.severity,
+                    "context": (app_err.context or {})})
+- For CRITICAL/Unknown only: pass `exc_info=True`; otherwise `exc_info=False`.
+- Do not duplicate logs across wrappers; `handle_cli_error` is the single place that logs.
 
 Integration with run.py (Phase H Step 16)
 -----------------------------------------
@@ -44,5 +70,164 @@ Safety
 ------
 - Never include secrets in messages or context (DB passwords, tokens).
 - Prefer `exc_info=False` for expected errors (Validation/Conflict/NotFound).
+- Do not intercept `SystemExit` or `KeyboardInterrupt` in `map_exception` or
+  `handle_cli_error`; re-raise them immediately.
+- `repr(AppError)` and messages must not include secrets (DB URLs, tokens). If needed, redact with "***".
 ===============================================================================
 """
+
+from __future__ import annotations
+
+import logging
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar
+
+from .exceptions import (
+    AppError,
+    ConflictError,
+    DBConnectionError,
+    DBMigrationError,
+    DBOperationError,
+    ExternalServiceError,
+    IOErrorApp,
+    UnknownError,
+    ValidationError,
+)
+from .exceptions import (
+    TimeoutError as DomainTimeoutError,
+)
+
+if TYPE_CHECKING:  # pragma: no cover - optional dependency guard
+    from sqlalchemy.exc import IntegrityError as SAIntegrityError
+    from sqlalchemy.exc import OperationalError as SAOperationalError
+    from sqlalchemy.exc import ProgrammingError as SAProgrammingError
+else:  # pragma: no cover - guard optional dependency import failures
+    try:
+        from sqlalchemy.exc import IntegrityError as SAIntegrityError
+        from sqlalchemy.exc import OperationalError as SAOperationalError
+        from sqlalchemy.exc import ProgrammingError as SAProgrammingError
+    except Exception:  # noqa: BLE001 - optional dependency missing
+        SAIntegrityError = SAOperationalError = SAProgrammingError = BaseException  # type: ignore[assignment]
+
+
+LoggerLike = logging.Logger
+_T = TypeVar("_T")
+
+
+def level_for(severity: str) -> int:
+    """Return the stdlib logging level for a given severity string."""
+
+    mapping: Mapping[str, int] = {
+        "INFO": logging.INFO,
+        "WARN": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+    return mapping.get(severity.upper(), logging.ERROR)
+
+
+def exc_info_for(app_err: AppError) -> bool:
+    """Determine whether traceback details should be logged for the error."""
+
+    return app_err.severity == "CRITICAL"
+
+
+def map_exception(err: BaseException) -> AppError:
+    """Translate any exception into a structured :class:`AppError`."""
+
+    if isinstance(err, (SystemExit, KeyboardInterrupt)):
+        raise err
+
+    if isinstance(err, AppError):
+        return err
+
+    if isinstance(err, SAOperationalError):
+        return DBConnectionError(context={"type": err.__class__.__name__})
+
+    if isinstance(err, SAProgrammingError):
+        return DBOperationError(context={"type": err.__class__.__name__})
+
+    if isinstance(err, SAIntegrityError):
+        return ConflictError(context={"type": err.__class__.__name__})
+
+    if isinstance(err, ValueError):
+        message = str(err) or None
+        context = {"type": err.__class__.__name__}
+        if message:
+            context["detail"] = message
+        return ValidationError(message=message, context=context)
+
+    if isinstance(err, TimeoutError):
+        message = str(err) or None
+        return DomainTimeoutError(
+            message=message, context={"type": err.__class__.__name__}
+        )
+
+    if isinstance(err, ConnectionError):
+        message = str(err) or None
+        return ExternalServiceError(
+            message=message, context={"type": err.__class__.__name__}
+        )
+
+    if isinstance(err, OSError):
+        message = str(err) or None
+        return IOErrorApp(message=message, context={"type": err.__class__.__name__})
+
+    if isinstance(err, RuntimeError):
+        message = str(err) or None
+        return DBMigrationError(
+            message=message, context={"type": err.__class__.__name__}
+        )
+
+    return UnknownError(
+        message=str(err),
+        context={"type": err.__class__.__name__},
+    )
+
+
+def handle_cli_error(err: BaseException, logger: LoggerLike) -> int:
+    """Normalize, log, and return the exit code for a CLI error."""
+
+    if isinstance(err, (SystemExit, KeyboardInterrupt)):
+        raise err
+
+    app_err = map_exception(err)
+    logger.log(
+        level_for(app_err.severity),
+        app_err.message,
+        extra={
+            "code": app_err.code,
+            "exit_code": app_err.exit_code,
+            "severity": app_err.severity,
+            "context": app_err.context or {},
+        },
+        exc_info=exc_info_for(app_err),
+    )
+    return app_err.exit_code
+
+
+def wrap_cli_main(func: Callable[..., _T]) -> Callable[..., _T]:
+    """Decorator that standardizes CLI error handling for entrypoints."""
+
+    logger = logging.getLogger(func.__module__)
+
+    @wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> _T:
+        try:
+            return func(*args, **kwargs)
+        except (SystemExit, KeyboardInterrupt):
+            raise
+        except BaseException as err:  # noqa: BLE001 - must capture all exceptions
+            code = handle_cli_error(err, logger)
+            raise SystemExit(code) from err
+
+    return wrapper
+
+
+__all__ = [
+    "map_exception",
+    "handle_cli_error",
+    "wrap_cli_main",
+    "level_for",
+    "exc_info_for",
+]
