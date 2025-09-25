@@ -3,134 +3,174 @@
 File: app/db/healthcheck.py
 Purpose
 -------
-Provide a fast, **read-only** Postgres healthcheck used by:
-- process startup (`run.py`)
-- CLI diagnostics (`manage.py check-env`, `manage.py diag`)
-- CI smoke tests
-
-This module MUST NOT mutate schema or data and MUST NOT log on its own
-(callers handle logging; this function returns data or raises).
-
-Public API (Codex must implement)
----------------------------------
-def ping(engine_or_session, *, timeout_seconds: float = 5.0) -> dict:
-    Inputs:
-      - engine_or_session: a SQLAlchemy Engine (preferred) or Session.
-      - timeout_seconds  : overall timeout budget for the entire ping (float).
-
-    Behavior (strict order; stop on first failure):
-      1) Start a monotonic timer.
-      2) Open a **fresh connection** (if Engine) or use the Session connection.
-      3) Execute ONLY read-only statements:
-           a) SELECT 1;
-           b) SHOW server_version;
-                - If SHOW fails (permissions/compat), FALL BACK to:
-                  SELECT version();
-                  - Parse the leading numeric segment into `server_version`
-                    (e.g., "16.3"); optionally also collect the full banner
-                    as `server_version_full` (optional extra).
-           c) SELECT current_database();
-      4) Compute `duration_ms` from the monotonic timer.
-      5) Return the dict (success schema below).
-
-    Success return (exact keys/types; deterministic):
-      {
-        "ok": True,                      # bool
-        "database": "<db_name>",         # str, e.g., "scheduling_dev" / "scheduling_test"
-        "server_version": "16.3",        # str, leading numeric portion of server version
-        "duration_ms": 12.8              # float (milliseconds)
-        # Optional extras if trivial to obtain:
-        # "server_version_full": "PostgreSQL 16.3 on ...",  # str
-        # "read_only": False,                                # bool (if SHOW default_transaction_read_only is available)
-      }
-
-    Failure behavior:
-      - Do NOT return a dict on failure.
-      - Raise DBConnectionError (from app.errors.exceptions) with SAFE context:
-          DBConnectionError(
-            message="Database healthcheck failed",
-            context={
-              "database": "<name-if-known-or-None>",
-              "timeout_s": timeout_seconds,
-              "driver": "psycopg2",     # if easily known
-              "op": "healthcheck.ping"
-            }
-          )
-      - Timeouts (your own timer or driver-level) are treated as DBConnectionError
-        with the same context (include "timeout_s").
-
-Performance budget & timeouts
------------------------------
-- Target: warm run typically < 50ms; **budget** <= 200ms in normal conditions.
-- Enforce an overall **timeout** using the function argument (default 5.0s).
-  If exceeded at any point, abort and raise DBConnectionError (include timeout).
-
-Read-only & safety constraints
-------------------------------
-- Absolutely NO writes, NO DDL, NO locks beyond default.
-- Use `sqlalchemy.text()`; avoid ORM overhead.
-- Do NOT include secrets in the returned dict or exception messages/context.
-  (Callers’ logging filters also redact as a safety net.)
-
-Error mapping (authoritative)
------------------------------
-Map any of the following to DBConnectionError:
-- sqlalchemy.exc.OperationalError
-- psycopg.errors.InvalidCatalogName (if psycopg is available)
-- psycopg.OperationalError (if applicable)
-- Any timeout condition (elapsed > timeout_seconds)
-- Any other exception during the 3 read-only statements above
-
-(Do NOT raise DBOperationError from this function; it’s strictly connectivity/readiness.)
-
-Integration & callers (how this is consumed)
---------------------------------------------
-- run.py:
-    If user did not pass --skip-db-check:
-      - call ping(engine, timeout_seconds=5)
-      - On success: the caller logs one INFO line with {database, server_version, duration_ms}
-      - On failure: let exception bubble; top-level handler maps to exit code 65
-- CLI check-env:
-      Always run ping(); include returned dict under a "ping" key in JSON mode.
-- CLI diag:
-      Run ping(); place summary under "db" section. In v1, partial failures should
-      be logged by the CLI and the command may still exit 0.
-
-Settings and engine helpers
----------------------------
-Optional helper (Codex MAY implement for convenience):
-- def build_engine_from_settings(settings) -> sqlalchemy.Engine
-    Creates an Engine using the effective DB URL. Must NOT connect here; only ping() uses it.
-
-Dependencies
-------------
-- sqlalchemy (Engine/Connection, text())
-- app.errors.exceptions.DBConnectionError
-
-Testing expectations
---------------------
-Unit (no real DB):
-- Simulate sqlalchemy.exc.OperationalError on first statement → DBConnectionError
-- Simulate failure of SHOW server_version; fallback to SELECT version(); parse numeric
-- Simulate slow run → exceed timeout_seconds → DBConnectionError with {"timeout_s": ...}
-
-Integration (with `scheduling_test`):
-- ping() returns:
-    ok is True
-    database == "scheduling_test"
-    server_version is not empty and looks like digits/dots (e.g., r"^\\d+(\\.\\d+)*$")
-    duration_ms > 0
-
-Smoke (existing tests/test_smoke.py):
-- test_db_healthcheck_readonly asserts keys above and that no write/DDL occurred.
-
-Redaction
----------
-- Never return or include full DATABASE_URL (or credentials) in messages/context.
-
-Notes
------
-- This module should not emit logs by itself; the caller is responsible for logging
-  success/failure using the structured logging setup from Phase F Step 13.
+Provide a fast, read-only Postgres healthcheck helper.
 ===============================================================================
 """
+
+from __future__ import annotations
+
+import re
+import time
+from collections.abc import Mapping
+from typing import Any, Final
+
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session
+
+from app.errors.exceptions import DBConnectionError
+
+__all__ = ["ping"]
+
+_VERSION_REGEX: Final[re.Pattern[str]] = re.compile(r"(\d+(?:\.\d+)*)")
+
+try:  # pragma: no cover - defensive import for SQLAlchemy errors
+    from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
+except Exception:  # pragma: no cover - fallback when SQLAlchemy internals change
+    SQLAlchemyOperationalError = None  # type: ignore[assignment]
+
+try:  # pragma: no cover - psycopg may be absent in pure unit tests
+    from psycopg import errors as psycopg_errors
+except Exception:  # pragma: no cover - fallback when psycopg isn't installed
+    InvalidCatalogName = None  # type: ignore[assignment]
+    PsycopgOperationalError = None  # type: ignore[assignment]
+else:  # pragma: no cover - import succeeded
+    InvalidCatalogName = psycopg_errors.InvalidCatalogName
+    PsycopgOperationalError = psycopg_errors.OperationalError
+
+_OPERATIONAL_ERRORS = tuple(
+    error
+    for error in (
+        SQLAlchemyOperationalError,
+        PsycopgOperationalError,
+        InvalidCatalogName,
+    )
+    if error is not None
+)
+
+
+def _elapsed_ms(start: float) -> float:
+    """Return elapsed milliseconds since ``start`` (monotonic timestamp)."""
+
+    return (time.monotonic() - start) * 1000.0
+
+
+def _assert_within_timeout(
+    start: float, timeout_seconds: float, context: Mapping[str, Any]
+) -> None:
+    """Raise :class:`DBConnectionError` if the allotted timeout has elapsed."""
+
+    if (time.monotonic() - start) > timeout_seconds:
+        raise DBConnectionError(
+            message="Database healthcheck failed",
+            context={**context, "timeout_s": timeout_seconds},
+        )
+
+
+def _build_context(
+    database: str | None, timeout_seconds: float, driver: str | None
+) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "database": database,
+        "timeout_s": timeout_seconds,
+        "op": "healthcheck.ping",
+    }
+    if driver:
+        context["driver"] = driver
+    return context
+
+
+def ping(
+    engine_or_session: Engine | Session, *, timeout_seconds: float = 5.0
+) -> dict[str, Any]:
+    """Perform a read-only healthcheck against Postgres.
+
+    Parameters
+    ----------
+    engine_or_session:
+        Either a SQLAlchemy ``Engine`` or an active ``Session``. When an
+        engine is provided a new connection is opened and explicitly closed at
+        the end of the check. Sessions reuse their existing connection.
+    timeout_seconds:
+        Overall time budget for the healthcheck. Exceeding the limit raises a
+        :class:`DBConnectionError`.
+
+    Returns
+    -------
+    dict[str, Any]
+        Structured payload describing the target database, server version, and
+        the elapsed time in milliseconds.
+
+    Raises
+    ------
+    DBConnectionError
+        When any of the read-only statements fail or the timeout is exceeded.
+    """
+
+    start = time.monotonic()
+    database_name: str | None = None
+    driver_name: str | None = None
+
+    if isinstance(engine_or_session, Engine):
+        connection = engine_or_session.connect()
+        should_close = True
+        driver_name = engine_or_session.dialect.driver
+    else:
+        connection = engine_or_session.connection()
+        should_close = False
+        bind = engine_or_session.get_bind()
+        if bind is not None:
+            driver_name = bind.dialect.driver
+
+    context = _build_context(database_name, timeout_seconds, driver_name)
+    server_version_full: str | None = None
+
+    try:
+        _assert_within_timeout(start, timeout_seconds, context)
+        connection.execute(text("SELECT 1"))
+        _assert_within_timeout(start, timeout_seconds, context)
+
+        try:
+            server_version_full_result = connection.execute(text("SHOW server_version"))
+            server_version_full = str(server_version_full_result.scalar_one())
+            server_version = server_version_full
+        except _OPERATIONAL_ERRORS:
+            version_row = connection.execute(text("SELECT version()"))
+            server_version_full = str(version_row.scalar_one())
+            match = _VERSION_REGEX.search(server_version_full)
+            if not match:
+                raise DBConnectionError(
+                    message="Database healthcheck failed",
+                    context=context,
+                )
+            server_version = match.group(1)
+
+        _assert_within_timeout(start, timeout_seconds, context)
+
+        database_result = connection.execute(text("SELECT current_database()"))
+        database_name = str(database_result.scalar_one())
+        context = _build_context(database_name, timeout_seconds, driver_name)
+        _assert_within_timeout(start, timeout_seconds, context)
+
+        result: dict[str, Any] = {
+            "ok": True,
+            "database": database_name,
+            "server_version": server_version,
+            "duration_ms": _elapsed_ms(start),
+        }
+        if server_version_full is not None:
+            result["server_version_full"] = server_version_full
+        return result
+    except _OPERATIONAL_ERRORS as exc:
+        raise DBConnectionError(
+            message="Database healthcheck failed",
+            context=_build_context(database_name, timeout_seconds, driver_name),
+        ) from exc
+    except Exception as exc:
+        raise DBConnectionError(
+            message="Database healthcheck failed",
+            context=_build_context(database_name, timeout_seconds, driver_name),
+        ) from exc
+    finally:
+        if should_close:
+            connection.close()
