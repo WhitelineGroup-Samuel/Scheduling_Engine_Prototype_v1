@@ -1,47 +1,86 @@
-"""
-===============================================================================
-File: app/utils/logging_tools.py
-Purpose
--------
-Provide small, focused helpers for logging context and IDs:
-- A contextvar-backed `trace_id` with helpers to create, set, and read it.
-- A context manager to bind a trace id around an operation.
-- Optional LoggerAdapter or `build_log_extra()` to attach structured extras.
+"""Utility helpers for working with structured logging trace identifiers."""
 
-What Codex must implement
--------------------------
-Trace ID API:
-- TRACE_ID_VAR: contextvars.ContextVar[str | None]
-- new_trace_id() -> str
-    * Return a random 16–32 hex string (e.g., 16 hex chars). Stable length is good.
-- get_trace_id() -> str | None
-    * Return the current trace id from context (or None).
-- ensure_trace_id() -> str
-    * Return current if present else generate+set a new id (also return it).
-- with_trace_id(trace_id: str) -> context manager
-    * Set the provided id for the duration of the context, then restore previous.
+from __future__ import annotations
 
-Optional helpers:
-- build_log_extra(**kwargs) -> dict
-    * Return a dict that can be passed as `extra=` to logger calls to include structured fields.
-- (Optional) ContextLoggerAdapter(logging.LoggerAdapter)
-    * Injects default context fields (component, job_id, etc.) into each log.
+import contextlib
+import contextvars
+import secrets
+from typing import Any, Iterator
 
-Contract with logging_config
-----------------------------
-- TraceIdFilter in logging_config will call `get_trace_id()` and/or `ensure_trace_id()`.
-- No dependency back from this module to settings; keep it pure/standalone.
-- Keep functions tiny and fast; no randomness beyond trace id generation.
+TRACE_ID_VAR: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "trace_id", default=None
+)
+"""Context variable storing the current trace identifier."""
 
-Testing ideas (later)
----------------------
-- With `with_trace_id()`, nested contexts restore prior values correctly.
-- `new_trace_id()` returns fixed-length hex; multiple calls are unique.
 
-Non-goals
----------
-- No OpenTelemetry wiring in v1 (can be added later).
-- No external correlation propagation (HTTP headers) in v1.
+def new_trace_id() -> str:
+    """Generate a fresh 16-character hexadecimal trace identifier.
 
-===============================================================================
-"""
+    Returns:
+        str: A random lower-case hexadecimal string suitable for correlation IDs.
+    """
+
+    return secrets.token_hex(8)
+
+
+def get_trace_id() -> str | None:
+    """Retrieve the trace identifier currently bound to the active context.
+
+    Returns:
+        str | None: The active trace identifier, if one has been set.
+    """
+
+    return TRACE_ID_VAR.get()
+
+
+def ensure_trace_id() -> str:
+    """Return the active trace identifier, creating one if missing.
+
+    Returns:
+        str: The existing or newly generated trace identifier.
+    """
+
+    current = TRACE_ID_VAR.get()
+    if current is not None:
+        return current
+    new_id = new_trace_id()
+    TRACE_ID_VAR.set(new_id)
+    return new_id
+
+
+@contextlib.contextmanager
+def with_trace_id(trace_id: str) -> Iterator[None]:
+    """Temporarily bind ``trace_id`` to the context inside a ``with`` block.
+
+    Args:
+        trace_id: The identifier to bind for the duration of the context.
+
+    Yields:
+        None: Execution proceeds inside the managed context.
+    """
+
+    token = TRACE_ID_VAR.set(trace_id)
+    try:
+        yield
+    finally:
+        TRACE_ID_VAR.reset(token)
+
+
+def build_log_extra(**kwargs: Any) -> dict[str, Any]:
+    """Return a dictionary suitable for passing as ``extra`` to logger methods.
+
+    Returns:
+        dict[str, Any]: A shallow copy of ``kwargs`` for logging APIs.
+    """
+
+    return dict(kwargs)
+
+
+__all__ = [
+    "TRACE_ID_VAR",
+    "new_trace_id",
+    "get_trace_id",
+    "ensure_trace_id",
+    "with_trace_id",
+    "build_log_extra",
+]
