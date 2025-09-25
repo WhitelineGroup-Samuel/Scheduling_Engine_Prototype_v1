@@ -1,121 +1,198 @@
-"""
-===============================================================================
-File: app/repositories/organisation_repository.py
-Purpose
--------
-Data-access for the `organisations` table — the **first entity scope** used to
-validate the end-to-end pipeline. Implements create/read/update/delete (CRUD),
-lookup by business keys, list with pagination/sorting, and simple upsert.
+"""Concrete repository for interacting with :class:`Organisation` rows."""
 
-Model assumptions (from database_erd.md / Phase E Step 12)
-----------------------------------------------------------
-- Table: organisations
-- Columns (representative):
-    id           : UUID (PK, generated app-side or DB-side)
-    name         : TEXT, NOT NULL, UNIQUE (business key)
-    slug         : TEXT, NOT NULL, UNIQUE (url-safe; derived from name)
-    created_at   : TIMESTAMPTZ, NOT NULL, default NOW() AT TIME ZONE 'UTC'
-    updated_at   : TIMESTAMPTZ, NOT NULL, default NOW() AT TIME ZONE 'UTC'
-- Indexes: unique on (name), unique on (slug), standard pk index.
-- Timestamps managed by DB defaults or application on update.
+from __future__ import annotations
 
-Public API (Codex must implement)
----------------------------------
+import re
+from typing import Any, cast
+
+from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+from sqlalchemy.sql import ColumnElement
+
+from app.models.core import Organisation
+from app.repositories.base_repository import BaseRepository
+
+__all__ = ["OrganisationRepository"]
+
+_MAX_SLUG_LENGTH = 200
+_SLUG_SANITISE_PATTERN = re.compile(r"[^a-z0-9]+")
+_VALID_SLUG_PATTERN = re.compile(r"^[a-z0-9-]+$")
+
+
+def _normalise_name(value: str) -> str:
+    """Normalise organisation names before persistence or lookup."""
+
+    cleaned = " ".join(value.split()) if value else ""
+    cleaned = cleaned.strip()
+    if not cleaned:
+        raise ValueError("name required")
+    return cleaned
+
+
+def _normalise_slug(value: str) -> str:
+    """Normalise slug strings to the canonical lowercase hyphenated form."""
+
+    candidate = value.strip().lower()
+    candidate = _SLUG_SANITISE_PATTERN.sub("-", candidate)
+    candidate = re.sub(r"-+", "-", candidate)
+    candidate = candidate.strip("-")
+    if not candidate:
+        raise ValueError("slug required")
+    if len(candidate) > _MAX_SLUG_LENGTH:
+        raise ValueError("slug must be at most 200 characters long")
+    if not _VALID_SLUG_PATTERN.fullmatch(candidate):
+        raise ValueError("slug may only contain lowercase letters, digits, and hyphens")
+    return candidate
+
+
 class OrganisationRepository(BaseRepository):
-    Concrete repository for Organisation model.
-    Usage:
-        repo = OrganisationRepository()
-        with get_session(SessionLocal) as s:
-            org = repo.create(s, name="Acme FC", slug="acme-fc")
+    """Data-access helpers for the ``organisations`` table."""
 
-    # -- Read methods ---------------------------------------------------------
-    def get_by_id(self, session, organisation_id) -> "Organisation | None":
-        Fetch by primary key. Return None if not found.
+    def get_by_id(self, session: Session, organisation_id: int) -> Organisation | None:
+        """Return an organisation by its primary key if present."""
 
-    def get_by_name(self, session, name: str) -> "Organisation | None":
-        Fetch by unique business name (case-sensitive or normalized as per model).
+        return session.get(Organisation, organisation_id)
 
-    def get_by_slug(self, session, slug: str) -> "Organisation | None":
-        Fetch by unique slug.
+    def get_by_name(self, session: Session, name: str) -> Organisation | None:
+        """Return an organisation matching the provided business name."""
+
+        cleaned = _normalise_name(name)
+        stmt: Select[Any] = select(Organisation).where(
+            Organisation.organisation_name == cleaned
+        )
+        return session.execute(stmt).scalar_one_or_none()
+
+    def get_by_slug(self, session: Session, slug: str) -> Organisation | None:
+        """Return an organisation by slug."""
+
+        normalised = _normalise_slug(slug)
+        stmt: Select[Any] = select(Organisation).where(Organisation.slug == normalised)
+        return session.execute(stmt).scalar_one_or_none()
 
     def list(
         self,
-        session,
+        session: Session,
         *,
         page: int = 1,
         page_size: int = 50,
-        sort: str | None = "name",  # supports "-name", "created_at", "-created_at"
-        search: str | None = None,   # optional ILIKE filter on name/slug
-    ) -> tuple[list["Organisation"], int]:
-        Return (items, total_count) with pagination & sorting applied.
-        - Enforce bounds: page>=1; 1<=page_size<=max_page_size (100).
-        - Sorting: map "name", "created_at", "updated_at"; prefix "-" for DESC.
-        - Search (optional): case-insensitive ILIKE on name OR slug.
+        sort: str | None = "name",
+        search: str | None = None,
+    ) -> tuple[list[Organisation], int]:
+        """Return a paginated collection of organisations."""
 
-    # -- Write methods --------------------------------------------------------
-    def create(self, session, *, name: str, slug: str | None = None) -> "Organisation":
-        Insert a new Organisation and return it (refreshed).
-        - Generate slug from name if not provided (use app.utils.validators/io helpers optionally).
-        - On UNIQUE violation (name/slug), SQLAlchemy raises IntegrityError.
-        - Do not catch IntegrityError here; let callers/handlers map it to ConflictError.
+        stmt: Select[Any] = select(Organisation)
+        if search:
+            term = search.strip()
+            if term:
+                like_pattern = f"%{term}%"
+                stmt = stmt.where(
+                    Organisation.organisation_name.ilike(like_pattern)
+                    | Organisation.slug.ilike(like_pattern)
+                )
+        allowed: dict[str, ColumnElement[Any]] = {
+            "name": cast(ColumnElement[Any], Organisation.organisation_name),
+            "created_at": cast(ColumnElement[Any], Organisation.created_at),
+            "updated_at": cast(ColumnElement[Any], Organisation.updated_at),
+        }
+        effective_sort = sort or "name"
+        stmt = self.apply_sorting(stmt, sort=effective_sort, allowed=allowed)
+        stmt = stmt.order_by(Organisation.organisation_id.asc())
+        raw_items, total = self.apply_pagination(
+            stmt,
+            session=session,
+            page=page,
+            page_size=page_size,
+            max_page_size=100,
+        )
+        items = [cast(Organisation, item) for item in raw_items]
+        return items, total
 
-    def update(
+    def create(
         self,
-        session,
-        organisation_id,
-        *,
-        name: str | None = None,
-        slug: str | None = None,
-    ) -> "Organisation":
-        Update an existing Organisation. Return the updated row.
-        - Must raise sqlalchemy.exc.NoResultFound if organisation_id does not exist.
-        - Update `updated_at` timestamp (DB default trigger or explicit app-side update).
-        - UNIQUE violations bubble as IntegrityError.
-
-    def upsert_by_name(
-        self,
-        session,
+        session: Session,
         *,
         name: str,
         slug: str | None = None,
-    ) -> "Organisation":
-        Idempotent create-or-update by business key (name).
-        Strategy (portable v1, no ON CONFLICT):
-          1) Try get_by_name(); if found and slug differs, update; else return found.
-          2) If not found, create().
-        Optional (Postgres-specific): Provide an alternative path using ON CONFLICT DO UPDATE
-        if you decide to add dialect-specific SQL later (not required in v1).
+    ) -> Organisation:
+        """Insert a new organisation row."""
 
-    def delete(self, session, organisation_id) -> None:
-        Hard delete by PK.
-        - Raise sqlalchemy.exc.NoResultFound if id not found.
-        - For v1, physical delete is acceptable (no soft-delete requirement).
+        cleaned_name = _normalise_name(name)
+        final_slug = (
+            _normalise_slug(slug) if slug is not None else _normalise_slug(cleaned_name)
+        )
+        instance = Organisation(
+            organisation_name=cleaned_name,
+            slug=final_slug,
+        )
+        self.add(session, instance)
+        session.flush()
+        return self.refresh(session, instance)
 
-Implementation details & constraints
-------------------------------------
-- Import the Organisation model from app.models.core (or appropriate module).
-- Use SQLAlchemy Core/ORM query patterns (2.x style recommended).
-- Keep methods small; apply helpers from BaseRepository for pagination/sorting.
-- Do not log within repo methods; callers log at CLI/service layer.
+    def update(
+        self,
+        session: Session,
+        organisation_id: int,
+        *,
+        name: str | None = None,
+        slug: str | None = None,
+    ) -> Organisation:
+        """Update an existing organisation by primary key."""
 
-Input validation & normalization
---------------------------------
-- `name` trimming and collapse internal whitespace (optional helper).
-- `slug` normalization to lowercase, hyphenated (use a simple utility if available).
-- Reject empty strings for required fields with ValueError (before touching DB).
+        stmt: Select[Any] = select(Organisation).where(
+            Organisation.organisation_id == organisation_id
+        )
+        instance: Organisation = session.execute(stmt).scalar_one()
 
-Performance & indexes
----------------------
-- Ensure list() orders by an indexed column where possible (name); avoid table scans
-  for large tables by combining pagination with deterministic sort columns.
+        if name is not None:
+            instance.organisation_name = _normalise_name(name)
+        if slug is not None:
+            instance.slug = _normalise_slug(slug)
 
-Testing (what the tests should cover)
--------------------------------------
-- Creating an org and fetching by id/name/slug.
-- Unique constraint violations on duplicate name or slug (IntegrityError).
-- list() pagination boundaries and total_count accuracy.
-- Search filter returns matching subsets (case-insensitive).
-- update() modifies fields and bumps updated_at.
-- delete() removes the row (subsequent get returns None).
-===============================================================================
-"""
+        session.flush()
+        session.refresh(instance)
+        return instance
+
+    def upsert_by_name(
+        self,
+        session: Session,
+        *,
+        name: str,
+        slug: str | None = None,
+    ) -> Organisation:
+        """Create or update an organisation addressed by its name."""
+
+        cleaned_name = _normalise_name(name)
+        existing = self.get_by_name(session, cleaned_name)
+        if existing is not None:
+            slug_changed = False
+            normalised_slug: str | None = None
+            if slug is not None:
+                normalised_slug = _normalise_slug(slug)
+                slug_changed = normalised_slug != existing.slug
+            name_changed = existing.organisation_name != cleaned_name
+            if name_changed or slug_changed:
+                return self.update(
+                    session,
+                    existing.organisation_id,
+                    name=cleaned_name if name_changed else None,
+                    slug=normalised_slug if slug_changed else None,
+                )
+            return existing
+
+        try:
+            return self.create(session, name=cleaned_name, slug=slug)
+        except IntegrityError:
+            refetched = self.get_by_name(session, cleaned_name)
+            if refetched is not None:
+                return refetched
+            raise
+
+    def delete(self, session: Session, organisation_id: int) -> None:
+        """Delete an organisation by its primary key."""
+
+        stmt: Select[Any] = select(Organisation).where(
+            Organisation.organisation_id == organisation_id
+        )
+        instance: Organisation = session.execute(stmt).scalar_one()
+        super().delete(session, instance)
