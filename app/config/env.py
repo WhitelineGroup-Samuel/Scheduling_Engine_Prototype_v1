@@ -3,35 +3,85 @@
 File: app/config/env.py
 Purpose
 -------
-Consistently load environment variables from `.env` files in **development/test**
-ONLY, and provide thin helpers for parsing. Production must rely solely on the
-process environment (no .env loading).
-
-Public API (Codex must implement)
----------------------------------
-- def load_dotenv_for_env(app_env: str, *, test_mode: bool = False) -> None:
-    Behavior:
-      - If app_env in {"dev", "test"}:
-          * Prefer `.env.test` when test_mode=True (pytest sets), else `.env`.
-          * Use python-dotenv if available; if not present, no-op.
-      - If app_env == "prod": NO-OP (strict).
-
-- Optional helper parsers (used rarely because Pydantic Settings handles parsing):
-    env_bool(key, default=False), env_int(key, default=None), etc.
-
-Error handling
---------------
-- Do NOT raise if file missing; this loader is best-effort for convenience.
-- Validation of required keys happens in app.config.settings (ConfigError).
-
-Used by
--------
-- run.py at startup (Phase H Step 16): load only for dev/test; not for prod.
-- pytest bootstrap (if necessary).
-
-Testing
--------
-- Unit tests can simulate presence/absence of .env.test and assert that values
-  are visible to pydantic settings afterwards.
+Consistently load environment variables from `.env` files in development/test
+only, keeping production dependent on the process environment.
 ===============================================================================
 """
+
+from __future__ import annotations
+
+import os
+
+from .constants import ENV_DEV, ENV_PROD, ENV_TEST
+from .paths import REPO_ROOT
+
+_TRUTHY_VALUES: set[str] = {"1", "true", "yes", "on"}
+_FALSY_VALUES: set[str] = {"0", "false", "no", "off"}
+
+
+def load_dotenv_for_env(app_env: str, *, test_mode: bool = False) -> None:
+    """Load environment variables from a `.env` file when appropriate."""
+
+    if app_env == ENV_PROD:
+        return
+    if app_env not in {ENV_DEV, ENV_TEST}:
+        return
+
+    dotenv_name = ".env.test" if test_mode else ".env"
+    dotenv_path = REPO_ROOT / dotenv_name
+    if not dotenv_path.exists():
+        return
+
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+
+    load_dotenv(dotenv_path, override=False)
+
+
+def _get_env(key: str) -> str | None:
+    """Helper to fetch an environment variable."""
+
+    value = os.getenv(key)
+    if value is None:
+        return None
+    return value.strip()
+
+
+def env_bool(key: str, default: bool = False) -> bool:
+    """Return a boolean environment variable using relaxed parsing."""
+
+    value = _get_env(key)
+    if value is None:
+        return default
+    lowered = value.lower()
+    if lowered in _TRUTHY_VALUES:
+        return True
+    if lowered in _FALSY_VALUES:
+        return False
+    return default
+
+
+def env_int(key: str, default: int | None = None) -> int | None:
+    """Return an integer environment variable if possible."""
+
+    value = _get_env(key)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def env_str(key: str, default: str | None = None) -> str | None:
+    """Return a string environment variable or the default."""
+
+    value = _get_env(key)
+    if value is None:
+        return default
+    return value
+
+
+__all__ = ["load_dotenv_for_env", "env_bool", "env_int", "env_str"]
