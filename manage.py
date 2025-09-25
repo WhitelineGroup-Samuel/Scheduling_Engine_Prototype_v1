@@ -29,5 +29,16 @@ Exit codes
 Notes
 -----
 - Ensure this file remains importable and side-effect free (besides Typer call).
+
+Exports (explicit)
+------------------
+- export nothing; keep side-effect free imports.
 ===============================================================================
 """
+
+from __future__ import annotations
+
+from app.cli.main import app
+
+if __name__ == "__main__":
+    app()
