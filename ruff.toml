@@ -6,3 +6,17 @@
 # Responsibilities:
 #   - Select rules, line length, isort settings via Ruff.
 # =============================================================================
+
+# Ruff central config (kept even though we set some in pyproject for clarity)
+line-length = 88
+target-version = "py312"
+
+[lint]
+extend-select = ["I"]  # isort
+ignore = ["D203","D213"]
+
+[lint.isort]
+known-first-party = ["app"]
+
+[format]
+quote-style = "double"

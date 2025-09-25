@@ -12,3 +12,92 @@
 # Collaborators:
 #   - mypy.ini/ruff.toml/pytest.ini (can be embedded here or separate).
 # =============================================================================
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "scheduling-engine"
+version = "0.1.0"
+description = "Whiteline SportsHub — Scheduling Engine (Back-End Prototype)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  # Runtime
+  "SQLAlchemy>=2.0,<3.0",
+  "alembic>=1.13,<2.0",
+  "pydantic>=2.7,<3.0",
+  "python-dotenv>=1.0,<2.0",
+  "typer>=0.12,<0.13",
+  "psycopg2-binary>=2.9,<3.0",
+  # Logging (JSON formatter helper; optional but useful for Step 13)
+  "python-json-logger>=2.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  # Lint/format/type/test/tooling
+  "ruff>=0.6,<1.0",
+  "black>=24.8,<25.0",
+  "mypy>=1.11,<2.0",
+  "pytest>=8.3,<9.0",
+  "pytest-cov>=5.0,<6.0",
+  "pre-commit>=3.7,<4.0",
+  "sqlfluff>=3.0,<4.0",
+  "pip-audit>=2.7,<3.0",
+]
+
+[tool.setuptools]
+packages = { find = { where = [
+  "",
+], include = [
+  "app*",
+], exclude = [
+  "tests*",
+  "sql*",
+  "logs*",
+  "migrations*",
+  "project_files*",
+  "docs*",
+  ".github*",
+  ".vscode*",
+] } }
+include-package-data = false
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+src = ["app", "tests"]
+extend-select = ["I"]     # isort via Ruff
+ignore = ["D203", "D213"] # example docstring rule prefs; adjust later
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -ra --strict-markers --disable-warnings"
+markers = [
+  "integration: marks tests that hit DB or external systems",
+  "slow: marks tests as slow",
+]
+
+[tool.sqlfluff.core]
+dialect = "ansi"
+templater = "jinja"
+sql_file_exts = ".sql"
+
+[tool.sqlfluff.indentation]
+tab_space_size = 2
+indented_joins = true
+
+[tool.sqlfluff.rules]
+tab_space_size = 2
+
+[tool.sqlfluff.layout.type.comma]
+line_position = "trailing"

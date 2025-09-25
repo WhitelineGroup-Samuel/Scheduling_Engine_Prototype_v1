@@ -9,3 +9,23 @@
 # Usage:
 #   make setup
 # =============================================================================
+
+.PHONY: fmt lint type test hooks
+
+.PHONY: all
+all: fmt lint type test hooks
+
+fmt:
+	black .
+
+lint:
+	ruff check .
+
+type:
+	mypy .
+
+test:
+	pytest -q
+
+hooks:
+	pre-commit run --all-files

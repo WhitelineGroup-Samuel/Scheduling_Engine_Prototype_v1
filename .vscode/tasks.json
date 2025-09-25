@@ -1,51 +1,127 @@
 // =============================================================================
 // File: .vscode/tasks.json
 // Purpose:
-//   Developer tasks to run lint, type-check, tests, migrations, seeding.
+//   Developer tasks for common flows with consistent env selection.
+//   - Lint / type-check / tests
+//   - Alembic inspection & upgrades (no DB creation here)
+//   - Seeding (dry-run/apply) via manage.py
 //
-// Tasks (examples):
-//   - "init-db": alembic upgrade head
-//   - "seed": python manage.py seed-data
-//   - "lint": ruff check . && black --check .
+// Conventions:
+//   - Dev runs use:  APP_ENV=dev  and ENV_FILE=.env
+//   - Tests use:     APP_ENV=test and ENV_FILE=.env.test
+//   - We activate .venv explicitly so tools resolve correctly.
 // =============================================================================
 {
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "lint",
+      "label": "fmt: black",
       "type": "shell",
-      "command": "ruff check . && black --check ."
-    },
-    {
-      "label": "typecheck",
-      "type": "shell",
-      "command": "mypy ."
-    },
-    {
-      "label": "test",
-      "type": "shell",
-      "command": "pytest -q"
-    },
-    {
-      "label": "init-db",
-      "type": "shell",
-      "command": "alembic upgrade head",
+      "command": ". .venv/bin/activate && black app tests",
       "problemMatcher": []
     },
     {
-      "label": "seed",
+      "label": "lint: ruff",
       "type": "shell",
-      "command": "python manage.py seed-data"
+      "command": ". .venv/bin/activate && ruff check app tests",
+      "problemMatcher": []
     },
     {
-      "label": "run",
+      "label": "type: mypy",
       "type": "shell",
-      "command": "python run.py"
+      "command": ". .venv/bin/activate && mypy app",
+      "problemMatcher": []
     },
     {
-      "label": "diag",
+      "label": "test: pytest (unit/smoke)",
       "type": "shell",
-      "command": "python manage.py diag"
+      "command": ". .venv/bin/activate && APP_ENV=test ENV_FILE=.env.test pytest -q -ra",
+      "problemMatcher": []
+    },
+    {
+      "label": "hooks: pre-commit install",
+      "type": "shell",
+      "command": ". .venv/bin/activate && pre-commit install",
+      "problemMatcher": []
+    },
+    {
+      "label": "hooks: run all",
+      "type": "shell",
+      "command": ". .venv/bin/activate && pre-commit run --all-files",
+      "problemMatcher": []
+    },
+    // ---- DB / CLI tasks -----------------------------------------------------
+    {
+      "label": "db: check-env",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py check-env -v",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: init-db (upgrade head)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py init-db",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: init-db (dry-run)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py init-db --dry-run -v",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: seed-data (dry-run)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py seed-data",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: seed-data (apply)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py seed-data --apply",
+      "problemMatcher": []
+    },
+    // ---- Alembic helpers (inspect/history only) ----------------------------
+    {
+      "label": "alembic: current",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic current",
+      "problemMatcher": []
+    },
+    {
+      "label": "alembic: heads",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic heads",
+      "problemMatcher": []
+    },
+    {
+      "label": "alembic: history",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic history --verbose",
+      "problemMatcher": []
+    },
+    {
+      "label": "alembic: revision (autogenerate)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic revision --autogenerate -m \"auto\"",
+      "problemMatcher": []
+    },
+    // ---- Meta tasks ---------------------------------------------------------
+    {
+      "label": "all: quick check (lint+type+test)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && ruff check app tests && mypy app && APP_ENV=test ENV_FILE=.env.test pytest -q -ra",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "all: full (fmt+lint+type+test+hooks)",
+      "type": "shell",
+      "command": ". .venv/bin/activate && black app tests && ruff check app tests && mypy app && APP_ENV=test ENV_FILE=.env.test pytest -q -ra && pre-commit run --all-files",
+      "problemMatcher": []
     }
   ]
 }

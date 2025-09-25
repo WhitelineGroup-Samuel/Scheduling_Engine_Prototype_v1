@@ -34,7 +34,7 @@ This document details the coding standards for all development work on this proj
 ## Migration Standards
 
 - **Tooling:** Use [Alembic](https://alembic.sqlalchemy.org/) for all database migrations.
-- **Process:** 
+- **Process:**
   - Migrations must be generated from ORM model changes.
   - All migrations must be reviewed and tested before merging.
   - Never edit migration files after they are committed; instead, create a new migration for changes.
