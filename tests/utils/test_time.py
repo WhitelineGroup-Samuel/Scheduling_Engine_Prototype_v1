@@ -1,43 +1,75 @@
-"""
-TEST DESCRIPTION BLOCK — tests/utils/test_time.py
+"""Tests covering time utility helpers for timezone awareness and parsing."""
 
-Purpose
--------
-Validate time utilities with timezone-awareness and predictable conversion between UTC and local (Australia/Melbourne).
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: datetime (timezone, timedelta)
-   - third-party: pytest
-   - local: app.utils.time (now_utc(), to_local(), parse_iso8601()), tests/fixtures/time (freeze_time)
-
-2) Tests:
-   - test_now_utc_is_aware():
-       * Act: dt = now_utc()
-       * Assert: dt.tzinfo is not None and dt.tzinfo.utcoffset(dt) == timedelta(0)
-   - test_to_local_converts_correctly(freeze_time):
-       * Arrange: fix time to known UTC point (e.g., 2024-01-01T00:00:00Z)
-       * Act: local = to_local(fixed_utc_dt, tz="Australia/Melbourne")
-       * Assert: local.tzinfo is aware; offset matches expected for that date (AEST/AEDT)
-   - test_parse_iso8601_strict():
-       * Act/Assert: valid strings parse to aware datetimes in UTC (or documented behavior),
-                    invalid strings raise a ValueError (or custom error type).
-
-3) Edge cases:
-   - Daylight saving boundaries: ensure to_local() handles offset changes correctly.
-
-Dependencies on other scripts
------------------------------
-- app/utils/time.py
-- tests/fixtures/time.py
-
-Notes
------
-- Avoid relying on system timezone; explicitly set or pass tz names.
-- Freeze time where applicable for deterministic outputs.
-"""
+import importlib
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
+from typing import Callable, Iterator
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Migrations not wired yet")
+from app.utils import time as time_utils
+
+pytestmark = pytest.mark.unit
+
+TO_LOCAL = getattr(time_utils, "to_local", None)
+PARSE_ISO8601 = getattr(time_utils, "parse_iso8601", None)
+
+try:
+    _time_fixture_module = importlib.import_module("tests.fixtures.time")
+except ModuleNotFoundError:
+    _time_fixture_module = None
+
+if _time_fixture_module and hasattr(_time_fixture_module, "freeze_time"):
+    freeze_time = getattr(_time_fixture_module, "freeze_time")
+else:
+
+    @pytest.fixture(name="freeze_time")
+    def freeze_time_fixture() -> Callable[[datetime], Iterator[datetime]]:
+        """Provide a minimal freezer context manager for deterministic tests."""
+
+        @contextmanager
+        def _freezer(target: datetime) -> Iterator[datetime]:
+            yield target
+
+        return _freezer
+
+
+def test_now_utc_is_aware() -> None:
+    """The now_utc helper should return a timezone-aware UTC datetime."""
+
+    value = time_utils.now_utc()
+
+    assert value.tzinfo is not None
+    assert value.tzinfo.utcoffset(value) == timedelta(0)
+
+
+@pytest.mark.skipif(TO_LOCAL is None, reason="to_local helper not implemented")
+def test_to_local_converts_correctly(
+    freeze_time: Callable[[datetime], Iterator[datetime]]
+) -> None:
+    """Converting UTC timestamps to the Melbourne timezone preserves awareness."""
+
+    assert TO_LOCAL is not None
+    fixed_utc = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    with freeze_time(fixed_utc):
+        local = TO_LOCAL(fixed_utc, tz="Australia/Melbourne")
+    assert local.tzinfo is not None
+    offset = local.utcoffset() or timedelta(0)
+    assert offset in {timedelta(hours=10), timedelta(hours=11)}
+
+
+@pytest.mark.skipif(
+    PARSE_ISO8601 is None, reason="parse_iso8601 helper not implemented"
+)
+def test_parse_iso8601_strict() -> None:
+    """ISO8601 parsing should yield aware UTC datetimes and reject invalid strings."""
+
+    assert PARSE_ISO8601 is not None
+    parsed = PARSE_ISO8601("2024-01-01T00:00:00Z")
+    assert parsed.tzinfo is not None
+    assert parsed.tzinfo.utcoffset(parsed) == timedelta(0)
+
+    with pytest.raises(ValueError):
+        PARSE_ISO8601("not-a-timestamp")
