@@ -1,94 +1,163 @@
-"""
-===============================================================================
-File: app/schemas/organisation.py
-Purpose
--------
-Define **Organisation** DTOs for the first entity scope. These represent the
-boundary shapes used by CLI/services to pass inputs to repositories and to
-return results back to callers.
+"""Organisation-specific DTOs and helpers."""
 
-Entity recap (from database_erd.md / Phase E Step 12)
------------------------------------------------------
-- Table: organisations
-- Fields (representative):
-    id: UUID (PK)
-    name: TEXT, NOT NULL, UNIQUE
-    slug: TEXT, NOT NULL, UNIQUE
-    created_at: TIMESTAMPTZ (UTC)
-    updated_at: TIMESTAMPTZ (UTC)
+from __future__ import annotations
 
-DTOs (Codex must implement)
----------------------------
-1) class OrganisationInDTO(BaseDTO):
-       Input for creating a new Organisation.
-       name: str
-       slug: str | None = None
-   - Validation:
-       * name: strip, ensure non-empty after trim, max length (e.g., 200)
-       * slug (optional): if provided, normalize to lowercase, hyphenated,
-         strip leading/trailing hyphens; enforce `[a-z0-9-]+`, length <= 200.
-       * If slug is None, callers may derive it from name at the service layer.
+import re
+from typing import TYPE_CHECKING, Any
 
-2) class OrganisationUpdateDTO(BaseDTO):
-       Input for updating an existing Organisation.
-       Only provided fields are updated.
-       name: str | None = None
-       slug: str | None = None
-   - Validation:
-       * If provided, same constraints as OrganisationInDTO.
-       * Must not be all None (raise ValueError).
+from pydantic import field_validator, model_validator
 
-3) class OrganisationOutDTO(TimestampsDTO):
-       Output shape for a single Organisation, suitable for CLI/diagnostics.
-       id: UUID
-       name: str
-       slug: str
-   - Inherits created_at, updated_at (UTC).
+from app.schemas.common import (
+    BaseDTO,
+    PaginationMeta,
+    TimestampsDTO,
+    ensure_utc,
+)
 
-4) class OrganisationListOutDTO(BaseDTO):
-       Paginated list of Organisations.
-       items: list[OrganisationOutDTO]
-       meta: PaginationMeta
+if TYPE_CHECKING:  # pragma: no cover - imported for typing only
+    from app.models.core import Organisation as OrganisationModel
 
-Mapping helpers (Codex must implement)
---------------------------------------
-- @classmethod OrganisationOutDTO.from_orm_row(row) -> "OrganisationOutDTO":
-      - Accepts an ORM instance (Organisation) and builds the DTO.
-      - MUST NOT leak lazy relationships (only the fields defined above).
-      - Ensure created_at/updated_at are UTC-aware; convert if necessary.
+__all__ = [
+    "OrganisationInDTO",
+    "OrganisationUpdateDTO",
+    "OrganisationOutDTO",
+    "OrganisationListOutDTO",
+    "to_create_params",
+]
 
-- @staticmethod def normalize_slug(name_or_slug: str) -> str:
-      - Lowercase, trim, replace internal whitespace/invalid chars with '-'
-      - Collapse multiple '-' to a single '-', strip leading/trailing '-'
-      - Enforce `[a-z0-9-]+` (raise ValueError if cannot normalize)
+_MAX_NAME_LENGTH = 200
+_MAX_SLUG_LENGTH = 200
+_SLUG_SANITISE_PATTERN = re.compile(r"[^a-z0-9]+")
+_VALID_SLUG_PATTERN = re.compile(r"^[a-z0-9-]+$")
 
-- Optional convenience:
-  def to_create_params(dto: OrganisationInDTO) -> dict:
-      - Returns dict for repository.create() with a derived slug if dto.slug is None.
 
-DTO/Repository boundary contract
---------------------------------
-- Repositories expect **validated** inputs (DTOs handle normalization/validation).
-- Repositories return ORM rows; callers convert to DTOs via from_orm_row().
-- Uniqueness/constraint errors are surfaced as SQLAlchemy exceptions; CLI/service
-  layer maps them to AppError types (ConflictError) via handlers.
+def _normalise_slug(value: str) -> str:
+    """Normalise a string into the canonical slug representation."""
 
-Testing expectations
---------------------
-- OrganisationInDTO validation: empty/whitespace-only name rejected; slug normalization.
-- OrganisationUpdateDTO: all None rejected; valid partial updates accepted.
-- OrganisationOutDTO.from_orm_row: correct field mapping and UTC datetimes.
-- OrganisationListOutDTO: correct pagination meta with items list.
+    candidate = value.strip().lower()
+    candidate = _SLUG_SANITISE_PATTERN.sub("-", candidate)
+    candidate = re.sub(r"-+", "-", candidate)
+    candidate = candidate.strip("-")
 
-Serialization rules
--------------------
-- JSON keys are snake_case; datetimes ISO8601 UTC.
-- UUID serialized as canonical string.
+    if not candidate:
+        raise ValueError("Slug cannot be empty after normalisation")
+    if len(candidate) > _MAX_SLUG_LENGTH:
+        raise ValueError("Slug must be at most 200 characters long")
+    if not _VALID_SLUG_PATTERN.fullmatch(candidate):
+        raise ValueError("Slug may only contain lowercase letters, digits, and hyphens")
+    return candidate
 
-Notes
------
-- Keep DTOs lightweight and portable; avoid importing heavy modules here.
-- If aliasing is introduced later (e.g., camelCase for HTTP), we’ll use field
-  aliases and `populate_by_name=True` in a v2 of these DTOs.
-===============================================================================
-"""
+
+class OrganisationInDTO(BaseDTO):
+    """Input DTO for provisioning a new organisation record."""
+
+    name: str
+    slug: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        """Ensure the organisation name meets formatting rules."""
+
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Organisation name cannot be empty")
+        if len(cleaned) > _MAX_NAME_LENGTH:
+            raise ValueError("Organisation name must be at most 200 characters long")
+        return cleaned
+
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _validate_slug(cls, value: str | None) -> str | None:
+        """Normalise provided slugs or defer derivation to the service layer."""
+
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return _normalise_slug(cleaned) if cleaned else None
+
+
+class OrganisationUpdateDTO(BaseDTO):
+    """Patch-style DTO for updating an existing organisation."""
+
+    name: str | None = None
+    slug: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str | None) -> str | None:
+        """Apply the same validation rules as creation when name is provided."""
+
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Organisation name cannot be empty")
+        if len(cleaned) > _MAX_NAME_LENGTH:
+            raise ValueError("Organisation name must be at most 200 characters long")
+        return cleaned
+
+    @field_validator("slug", mode="before")
+    @classmethod
+    def _validate_slug(cls, value: str | None) -> str | None:
+        """Normalise slugs on update to maintain canonical formatting."""
+
+        if value is None:
+            return None
+        cleaned = value.strip()
+        return _normalise_slug(cleaned) if cleaned else None
+
+    @model_validator(mode="after")
+    def _ensure_any_field(self) -> "OrganisationUpdateDTO":
+        """Reject payloads that do not provide any fields to update."""
+
+        if self.name is None and self.slug is None:
+            raise ValueError("At least one of 'name' or 'slug' must be provided")
+        return self
+
+
+class OrganisationOutDTO(TimestampsDTO):
+    """DTO used when returning organisation records to callers."""
+
+    id: int
+    name: str
+    slug: str
+
+    @classmethod
+    def from_orm_row(cls, row: "OrganisationModel") -> "OrganisationOutDTO":
+        """Create an output DTO from an ORM instance."""
+
+        created_at = getattr(row, "created_at", None)
+        updated_at = getattr(row, "updated_at", None)
+        if created_at is None or updated_at is None:
+            raise ValueError("Organisation row must include timestamps")
+        return cls(
+            id=int(getattr(row, "organisation_id")),
+            name=str(getattr(row, "organisation_name")),
+            slug=str(getattr(row, "slug")),
+            created_at=ensure_utc(created_at),
+            updated_at=ensure_utc(updated_at),
+        )
+
+    @staticmethod
+    def normalize_slug(name_or_slug: str) -> str:
+        """Public slug normalisation helper for service and CLI layers."""
+
+        return _normalise_slug(name_or_slug)
+
+
+class OrganisationListOutDTO(BaseDTO):
+    """Paginated list response for organisation queries."""
+
+    items: list[OrganisationOutDTO]
+    meta: PaginationMeta
+
+
+def to_create_params(dto: OrganisationInDTO) -> dict[str, Any]:
+    """Render repository parameters for an organisation creation request."""
+
+    slug = dto.slug or OrganisationOutDTO.normalize_slug(dto.name)
+    return {
+        "organisation_name": dto.name,
+        "slug": slug,
+    }
