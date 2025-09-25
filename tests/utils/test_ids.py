@@ -1,36 +1,32 @@
-"""
-TEST DESCRIPTION BLOCK — tests/utils/test_ids.py
+"""Tests for UUID helpers ensuring deterministic formatting and uniqueness."""
 
-Purpose
--------
-Verify ID helpers behave deterministically and safely (format, uniqueness).
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: re
-   - third-party: pytest
-   - local: app.utils.ids (e.g., new_uuid_str(), maybe ULID helpers later)
-
-2) Tests:
-   - test_new_uuid_str_format():
-       * Act: s = new_uuid_str()
-       * Assert: matches canonical UUID v4 pattern (hex + hyphens), len == 36.
-   - test_new_uuid_str_uniqueness():
-       * Generate e.g., 1000 IDs; assert len(set(ids)) == len(ids)
-
-3) Edge cases:
-   - If you add a ULID helper later, add tests for sortability/monotonicity.
-
-Dependencies on other scripts
------------------------------
-- app/utils/ids.py
-
-Notes
------
-- Keep tests fast; no I/O or DB.
-"""
+import re
 
 import pytest
 
-pytestmark = pytest.mark.skip(reason="Migrations not wired yet")
+from app.utils.ids import new_uuid_str
+
+pytestmark = pytest.mark.unit
+
+_UUID_PATTERN = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+)
+
+
+def test_new_uuid_str_format() -> None:
+    """Generated UUID strings should match the canonical UUID4 format."""
+
+    value = new_uuid_str()
+
+    assert len(value) == 36
+    assert _UUID_PATTERN.match(value), f"Unexpected UUID4 format: {value}"
+
+
+def test_new_uuid_str_uniqueness() -> None:
+    """A batch of generated UUID strings should be globally unique."""
+
+    batch = [new_uuid_str() for _ in range(1000)]
+
+    assert len(batch) == len(set(batch)), "Duplicate UUIDs detected in generated batch"

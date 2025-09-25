@@ -1,78 +1,150 @@
-"""
-TEST DESCRIPTION BLOCK — tests/test_smoke.py
+"""Smoke tests verifying configuration, logging, and database readiness."""
 
-Purpose
--------
-Fast, read-only **smoke tests** that prove the skeleton boots:
-- Settings load & validate correctly from environment variables (.env.test).
-- Logging configuration builds without error and emits expected fields (incl. trace_id).
-- DB healthcheck can execute *read-only* queries against the test database.
-- Alembic wiring (env script + target_metadata) is discoverable.
-- CLI entrypoints are discoverable and show help.
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: os, json, subprocess, sys, pathlib
-   - third-party: pytest
-   - local: app.config.settings (get_settings/Settings),
-            app.config.logging_config (configure_logging),
-            app.db.healthcheck (ping),
-            app.db.alembic_env (target_metadata)
-
-2) Tests (all MUST be fast and side-effect free):
-   - test_settings_loads_and_validates():
-       * Arrange: load settings using the canonical factory (e.g., get_settings()).
-       * Assert: settings.APP_ENV == "test"
-                settings.TIMEZONE == "Australia/Melbourne"
-                settings.LOG_LEVEL == "INFO" (or maps to logging.INFO)
-                effective database_url is either provided OR constructed correctly from parts
-                boolean parsing for LOG_JSON behaves (e.g., "false" -> False)
-   - test_timezone_available():
-       * Assert that zoneinfo.ZoneInfo(settings.TIMEZONE) is loadable and tz-aware.
-   - test_logging_config_builds_and_emits(caplog):
-       * Arrange: call logging_config.configure_logging(settings).
-       * Act: log a test message via a named logger.
-       * Assert (human mode): first record has `trace_id` attribute populated.
-       * Assert (json mode): temporarily set LOG_JSON=true, reconfigure, emit one line,
-         json.loads(line) contains keys: ts, level, logger, trace_id, msg, env, app, version.
-   - test_db_healthcheck_readonly():
-       * Arrange: build a SQLAlchemy Engine from settings (do NOT create/drop anything).
-       * Act: call healthcheck.ping(engine) which should execute SELECT-only statements.
-       * Assert: result.ok is True, result.database == "scheduling_test",
-                server_version is non-empty, duration_ms > 0.
-   - test_alembic_wiring_discoverable():
-       * Assert: app.db.alembic_env exposes target_metadata (Base.metadata)
-                and that it is a sqlalchemy MetaData instance (no migration apply here).
-   - test_cli_help_succeeds(tmp_path):
-       * Act: run "python manage.py --help" via subprocess.
-       * Assert: return code == 0 and some known commands are mentioned (e.g., "check-env").
-
-3) Markers & Performance:
-   - No @pytest.mark.integration here; keep these tests < 1s cumulative where possible.
-   - Avoid writing to DB or filesystem (use tmp_path for any transient files).
-
-4) Failure messages:
-   - Provide clear asserts with helpful messages so misconfigurations are obvious.
-
-Dependencies on other scripts
------------------------------
-- app/config/settings.py : Pydantic Settings model and/or factory
-- app/config/logging_config.py : dictConfig builder (console + JSON + trace_id)
-- app/utils/logging_tools.py : trace id context access (implicitly via filter)
-- app/db/healthcheck.py : read-only ping implementation
-- app/db/alembic_env.py : target_metadata wiring
-- app/errors/handlers.py : map_exception/handle_cli_error used by CLI smoke if needed
-
-Notes
------
-- Tests assume `.env.test` is auto-loaded by tests/conftest.py.
-- DB used here is "scheduling_test"; do not mutate schema or data.
-"""
+import json
+import logging
+import os
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
+from sqlalchemy.sql.schema import MetaData
 
-# TEMP: Keep the global skip while migrations/logging are still being wired.
-pytestmark = pytest.mark.skip(
-    reason="Migrations/logging not wired yet; remove when ready."
-)
+from app.config.logging_config import configure_logging
+from app.config.settings import Settings, get_settings
+from app.db.alembic_env import target_metadata
+from app.db.engine import create_engine_from_settings
+from app.db.healthcheck import ping
+from app.errors.codes import ErrorCode
+
+pytestmark = pytest.mark.smoke
+
+
+def test_settings_loads_and_validates() -> None:
+    """Settings should load from the environment with expected defaults."""
+
+    settings = get_settings()
+
+    assert isinstance(settings, Settings)
+    assert settings.APP_ENV == "test"
+    assert settings.TIMEZONE == "Australia/Melbourne"
+    assert settings.LOG_LEVEL.upper() == "INFO"
+    assert isinstance(settings.LOG_JSON, bool)
+
+    database_url = settings.effective_database_url
+    assert database_url, "effective_database_url should not be empty"
+    if settings.DATABASE_URL:
+        assert database_url == settings.DATABASE_URL
+    else:
+        assert settings.DB_NAME == "scheduling_test"
+
+
+def test_timezone_available() -> None:
+    """The configured timezone must resolve via :mod:`zoneinfo`."""
+
+    settings = get_settings()
+    tz = ZoneInfo(settings.TIMEZONE)
+    aware_now = datetime.now(tz)
+    assert aware_now.tzinfo is not None
+    assert aware_now.tzinfo.utcoffset(aware_now) is not None
+
+
+def test_logging_config_builds_and_emits(
+    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Logging configuration should emit human and JSON formats with trace IDs."""
+
+    base_settings = get_settings()
+    human_settings = base_settings.model_copy(update={"LOG_JSON": False}, deep=True)
+    configure_logging(human_settings, force_json=False, force_level="INFO")
+    caplog.clear()
+    human_logger = logging.getLogger("app.smoke.logging")
+    human_logger.propagate = False
+    caplog.set_level(logging.ERROR, logger=human_logger.name)
+    human_logger.error(
+        "human-mode log",
+        extra={
+            "code": ErrorCode.UNKNOWN_ERROR.code,
+            "exit_code": ErrorCode.UNKNOWN_ERROR.exit_code,
+            "severity": ErrorCode.UNKNOWN_ERROR.severity,
+        },
+    )
+    assert caplog.records, "Expected at least one human log record"
+    human_record = caplog.records[-1]
+    assert getattr(human_record, "trace_id")
+    caplog.clear()
+    capsys.readouterr()
+
+    json_settings = base_settings.model_copy(update={"LOG_JSON": True}, deep=True)
+    configure_logging(json_settings, force_json=True, force_level="INFO")
+    json_logger = logging.getLogger("app.smoke.logging.json")
+    json_logger.propagate = False
+    json_logger.error(
+        "json-mode log",
+        extra={
+            "code": ErrorCode.UNKNOWN_ERROR.code,
+            "exit_code": ErrorCode.UNKNOWN_ERROR.exit_code,
+            "severity": ErrorCode.UNKNOWN_ERROR.severity,
+        },
+    )
+    sys.stdout.flush()
+    captured = capsys.readouterr()
+    lines = [line for line in captured.out.splitlines() if line.strip()]
+    assert lines, "Expected JSON log output"
+    payload = json.loads(lines[-1])
+    expected_keys = {
+        "ts",
+        "level",
+        "logger",
+        "trace_id",
+        "msg",
+        "env",
+        "app",
+        "version",
+        "code",
+        "exit_code",
+    }
+    assert expected_keys.issubset(payload)
+
+
+def test_db_healthcheck_readonly() -> None:
+    """The database healthcheck should succeed using read-only queries."""
+
+    settings = get_settings()
+    engine = create_engine_from_settings(settings, role="test")
+    try:
+        result = ping(engine)
+    finally:
+        engine.dispose()
+
+    assert result["ok"] is True
+    assert result["database"] == "scheduling_test"
+    assert result["server_version"]
+    assert result["duration_ms"] > 0
+
+
+def test_alembic_wiring_discoverable() -> None:
+    """Alembic metadata should be exposed for migration tooling."""
+
+    assert isinstance(target_metadata, MetaData)
+
+
+def test_cli_help_succeeds() -> None:
+    """Invoking the CLI help should succeed and list core commands."""
+
+    repo_root = Path(__file__).resolve().parent.parent
+    env = os.environ.copy()
+    result = subprocess.run(
+        [sys.executable, "manage.py", "--help"],
+        cwd=repo_root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "check-env" in result.stdout
