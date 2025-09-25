@@ -24,5 +24,15 @@ Guidelines
 Notes
 -----
 - Keep this __init__ side-effect free; it should be safe to import anywhere.
+
+Exports (explicit)
+------------------
+- `__all__ = ["app"]` (re-export from app.cli.main).
 ===============================================================================
 """
+
+from __future__ import annotations
+
+from .main import app
+
+__all__ = ["app"]
