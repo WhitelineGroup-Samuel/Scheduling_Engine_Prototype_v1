@@ -12,8 +12,8 @@ line-length = 88
 target-version = "py312"
 
 [lint]
-extend-select = ["I"]  # isort
-ignore = ["D203","D213"]
+extend-select = ["I"]     # isort
+ignore = ["D203", "D213"]
 
 [lint.isort]
 known-first-party = ["app"]
