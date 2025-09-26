@@ -9,7 +9,13 @@ via :func:`app.db.base.import_all_models`.
 from __future__ import annotations
 
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
+
+# Hint Pylance/mypy that `Organisation` is a valid export without forcing eager imports
+if TYPE_CHECKING:  # only for type checkers, no runtime import side-effects
+    from app.models.core import Organisation as Organisation  # noqa: F401
+else:
+    Organisation = cast(Any, None)
 
 __all__ = ["Organisation"]
 

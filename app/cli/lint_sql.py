@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import typer
 
@@ -70,33 +70,50 @@ from app.utils.logging_tools import new_trace_id, with_trace_id
 __all__ = ["lint_sql_command"]
 
 
+def _ctx_dict(ctx: typer.Context) -> dict[str, Any]:
+    obj = ctx.obj
+    if isinstance(obj, dict):
+        return cast(dict[str, Any], obj)
+    empty: dict[str, Any] = {}
+    return empty
+
+
 def _count_violations(record: dict[str, Any]) -> int:
     """Return the number of actionable violations for a lint record."""
-
     total = 0
-    for violation in record.get("violations", []) or []:
-        ignore = False
-        if hasattr(violation, "ignore"):
-            ignore = bool(getattr(violation, "ignore"))
-        elif isinstance(violation, dict):
-            ignore = bool(violation.get("ignore"))
-        if not ignore:
-            total += 1
+    violations = record.get("violations")
+    if isinstance(violations, list):
+        violations_list = cast(list[dict[str, Any] | object], violations)
+        for v_any in violations_list:
+            ignore = False
+            if isinstance(v_any, dict):
+                v_dict = cast(dict[str, Any], v_any)
+                ignore = bool(v_dict.get("ignore"))
+            else:
+                ignore = bool(getattr(v_any, "ignore", False))
+            if not ignore:
+                total += 1
     return total
 
 
 def _normalise_records(records: Any) -> list[dict[str, Any]]:
     """Render sqlfluff lint records into dictionaries."""
-
     normalised: list[dict[str, Any]] = []
     if isinstance(records, list):
-        for record in records:
-            if isinstance(record, dict):
-                normalised.append(record)
+        records_list = cast(list[dict[str, Any] | object], records)
+        for r_any in records_list:
+            if isinstance(r_any, dict):
+                r_dict = cast(dict[str, Any], r_any)
+                normalised.append(r_dict)
     elif hasattr(records, "as_records"):
-        raw_records = records.as_records()
-        if isinstance(raw_records, list):
-            normalised.extend(raw_records)
+        raw = records.as_records()
+        raw_list: list[dict[str, Any] | object] = []
+        if isinstance(raw, list):
+            raw_list = cast(list[dict[str, Any] | object], raw)
+        for r_any in raw_list:
+            if isinstance(r_any, dict):
+                r_dict = cast(dict[str, Any], r_any)
+                normalised.append(r_dict)
     return normalised
 
 
@@ -130,7 +147,8 @@ def lint_sql_command(
     """
 
     settings = get_settings()
-    global_verbose = bool((ctx.obj or {}).get("verbose"))
+    ctxd = _ctx_dict(ctx)
+    global_verbose = bool(ctxd.get("verbose", False))
     effective_verbose = verbose or global_verbose
     configure_logging(
         settings,
@@ -165,15 +183,16 @@ def lint_sql_command(
 
     with with_trace_id(new_trace_id()):
         linter = Linter(**linter_kwargs)
-        lint_result = linter.lint_paths(paths=[str(target_path)])
+        lint_result = linter.lint_paths(paths=(str(target_path),))
         records = _normalise_records(lint_result)
 
         per_file: list[tuple[str, int]] = []
         for record in records:
-            filepath = record.get("filepath")
+            record_dict: dict[str, Any] = record
+            filepath = record_dict.get("filepath")
             if filepath is None:
                 continue
-            per_file.append((str(filepath), _count_violations(record)))
+            per_file.append((str(filepath), _count_violations(record_dict)))
 
         files_scanned = len(per_file)
         total_violations = sum(count for _, count in per_file)

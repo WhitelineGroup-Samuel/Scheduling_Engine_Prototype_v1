@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import importlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from typing import Any, Callable, ContextManager, Optional
 
 import pytest
 
-try:  # pragma: no cover - optional dependency
-    from freezegun import freeze_time as _freezegun_freeze_time
-except ImportError:  # pragma: no cover - executed when freezegun missing
-    _freezegun_freeze_time = None
-
 from app.utils import time as time_utils
+
+# Optional dependency: "freezegun" is only needed if installed in the dev env.
+_freezegun_freeze_time: Optional[Callable[[Any], ContextManager[Any]]]
+try:
+    _fz_mod = importlib.import_module("freezegun")
+    _freezegun_freeze_time = getattr(_fz_mod, "freeze_time", None)
+except Exception:
+    _freezegun_freeze_time = None
 
 _FROZEN_INSTANT = datetime(2024, 1, 1, tzinfo=timezone.utc)
 

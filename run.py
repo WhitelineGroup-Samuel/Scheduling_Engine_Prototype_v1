@@ -173,16 +173,16 @@ class _SignalHandler:
         )
 
 
-_SIGNAL_HANDLER: _SignalHandler | None = None
+_signal_handler: _SignalHandler | None = None
 
 
 def _register_signal_handlers(logger: logging.Logger) -> None:
     """Register signal handlers for graceful shutdown management."""
 
-    global _SIGNAL_HANDLER
-    _SIGNAL_HANDLER = _SignalHandler(logger)
-    signal.signal(signal.SIGINT, _SIGNAL_HANDLER)
-    signal.signal(signal.SIGTERM, _SIGNAL_HANDLER)
+    global _signal_handler
+    _signal_handler = _SignalHandler(logger)
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
 
 
 def main(argv: Optional[list[str]] = None) -> None:

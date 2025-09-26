@@ -9,9 +9,11 @@ Provide a fast, read-only Postgres healthcheck helper.
 
 from __future__ import annotations
 
+import importlib
 import re
 import time
 from collections.abc import Mapping
+from types import ModuleType
 from typing import Any, Final
 
 from sqlalchemy import text
@@ -24,29 +26,30 @@ __all__ = ["ping"]
 
 _VERSION_REGEX: Final[re.Pattern[str]] = re.compile(r"(\d+(?:\.\d+)*)")
 
-try:  # pragma: no cover - defensive import for SQLAlchemy errors
-    from sqlalchemy.exc import OperationalError as SQLAlchemyOperationalError
-except Exception:  # pragma: no cover - fallback when SQLAlchemy internals change
-    SQLAlchemyOperationalError = None  # type: ignore[assignment]
+_operational_errors: tuple[type[BaseException], ...] = ()
 
-try:  # pragma: no cover - psycopg may be absent in pure unit tests
-    from psycopg import errors as psycopg_errors
-except Exception:  # pragma: no cover - fallback when psycopg isn't installed
-    InvalidCatalogName = None  # type: ignore[assignment]
-    PsycopgOperationalError = None  # type: ignore[assignment]
-else:  # pragma: no cover - import succeeded
-    InvalidCatalogName = psycopg_errors.InvalidCatalogName
-    PsycopgOperationalError = psycopg_errors.OperationalError
+try:  # pragma: no cover
+    from sqlalchemy.exc import OperationalError as _SAOperationalError
+except Exception:  # pragma: no cover
+    pass
+else:  # pragma: no cover
+    _operational_errors = _operational_errors + (_SAOperationalError,)
 
-_OPERATIONAL_ERRORS = tuple(
-    error
-    for error in (
-        SQLAlchemyOperationalError,
-        PsycopgOperationalError,
-        InvalidCatalogName,
-    )
-    if error is not None
-)
+_psycopg_errors_mod: ModuleType | None = None
+try:  # pragma: no cover
+    _psycopg_errors_mod = importlib.import_module("psycopg.errors")
+except Exception:  # pragma: no cover
+    _psycopg_errors_mod = None
+else:  # pragma: no cover
+    # Build tuple only from attributes that exist and are exception classes
+    ops: list[type[BaseException]] = []
+    for name in ("OperationalError", "InvalidCatalogName"):
+        err_cls = getattr(_psycopg_errors_mod, name, None)
+        if isinstance(err_cls, type) and issubclass(err_cls, BaseException):
+            ex: type[BaseException] = err_cls
+            ops.append(ex)
+    if ops:
+        _operational_errors = _operational_errors + tuple(ops)
 
 
 def _elapsed_ms(start: float) -> float:
@@ -118,9 +121,11 @@ def ping(
     else:
         connection = engine_or_session.connection()
         should_close = False
-        bind = engine_or_session.get_bind()
-        if bind is not None:
+        try:
+            bind = engine_or_session.get_bind()
             driver_name = bind.dialect.driver
+        except Exception:
+            pass
 
     context = _build_context(database_name, timeout_seconds, driver_name)
     server_version_full: str | None = None
@@ -134,7 +139,7 @@ def ping(
             server_version_full_result = connection.execute(text("SHOW server_version"))
             server_version_full = str(server_version_full_result.scalar_one())
             server_version = server_version_full
-        except _OPERATIONAL_ERRORS:
+        except _operational_errors:
             version_row = connection.execute(text("SELECT version()"))
             server_version_full = str(version_row.scalar_one())
             match = _VERSION_REGEX.search(server_version_full)
@@ -156,12 +161,11 @@ def ping(
             "ok": True,
             "database": database_name,
             "server_version": server_version,
+            "server_version_full": server_version_full,
             "duration_ms": _elapsed_ms(start),
         }
-        if server_version_full is not None:
-            result["server_version_full"] = server_version_full
         return result
-    except _OPERATIONAL_ERRORS as exc:
+    except _operational_errors as exc:
         raise DBConnectionError(
             message="Database healthcheck failed",
             context=_build_context(database_name, timeout_seconds, driver_name),

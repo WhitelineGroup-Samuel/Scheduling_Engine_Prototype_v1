@@ -11,11 +11,19 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping  # add this import
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable, cast
 
 from .paths import REPO_ROOT
+
+
+def _to_str_any_dict(m: Mapping[object, object]) -> dict[str, Any]:
+    """Coerce arbitrary mapping to dict[str, Any] by stringifying keys."""
+    # Here Pylance knows m.items() yields tuple[Any, Any], so k/v are Any (not Unknown).
+    return {str(k): v for k, v in m.items()}
+
 
 io_helpers: ModuleType | None
 try:  # pragma: no cover - optional dependency fallback
@@ -23,15 +31,19 @@ try:  # pragma: no cover - optional dependency fallback
 except ImportError:  # pragma: no cover - optional fallback
     io_helpers = None
 
+if TYPE_CHECKING:  # pragma: no cover
+    from .settings import Settings
+
+# Explicit helper types so Pylance knows the return shapes of loader helpers
+_read_json_helper: Callable[[Path], dict[str, Any]] | None = None
+_read_yaml_helper: Callable[[Path], dict[str, Any]] | None = None
+
 if io_helpers is not None:  # pragma: no cover - helper discovery
     _read_json_helper = getattr(io_helpers, "read_json", None)
     _read_yaml_helper = getattr(io_helpers, "read_yaml", None)
 else:  # pragma: no cover - helper discovery fallback
     _read_json_helper = None
     _read_yaml_helper = None
-
-if TYPE_CHECKING:  # pragma: no cover
-    from .settings import Settings
 
 _TRUTHY_VALUES: set[str] = {"1", "true", "yes", "on"}
 _FALSY_VALUES: set[str] = {"0", "false", "no", "off"}
@@ -41,7 +53,7 @@ _FLAG_FILE_YAML: Path = REPO_ROOT / "feature_flags.yml"
 _FLAG_FILE_JSON: Path = REPO_ROOT / "feature_flags.json"
 
 DEFAULT_FLAGS: dict[str, bool] = {}
-_FLAGS_CACHE: dict[str, bool] | None = None
+_flags_cache: dict[str, bool] | None = None
 
 
 def _normalise_name(name: str) -> str:
@@ -68,40 +80,44 @@ def _coerce_bool(value: Any) -> bool:
 
 def _load_yaml(path: Path) -> dict[str, Any] | None:
     """Load YAML content if support is available."""
-
     if _read_yaml_helper is not None:
         try:
-            data = _read_yaml_helper(path)
+            return _read_yaml_helper(path)  # already dict[str, Any]
         except FileNotFoundError:
             return None
-        return data if isinstance(data, dict) else None
 
     try:
         import yaml  # type: ignore[import-untyped]
-    except ImportError:  # pragma: no cover - optional dependency
+    except ImportError:  # optional dependency
         return None
 
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
-    return data if isinstance(data, dict) else None
+    if isinstance(data, dict):
+        m = cast(Mapping[object, object], data)
+        return _to_str_any_dict(m)
+    else:
+        return None
 
 
 def _load_json(path: Path) -> dict[str, Any] | None:
     """Load JSON content using helper or built-in support."""
-
     if _read_json_helper is not None:
         try:
-            data = _read_json_helper(path)
+            return _read_json_helper(path)  # already dict[str, Any]
         except FileNotFoundError:
             return None
-        return data if isinstance(data, dict) else None
 
     try:
         with path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
     except FileNotFoundError:
         return None
-    return data if isinstance(data, dict) else None
+    if isinstance(data, dict):
+        m = cast(Mapping[object, object], data)
+        return _to_str_any_dict(m)
+    else:
+        return None
 
 
 def _load_file_flags() -> dict[str, bool]:
@@ -144,8 +160,8 @@ def read_flags(settings: "Settings") -> dict[str, bool]:
 
     merged: dict[str, bool] = {**defaults, **file_flags, **env_flags}
 
-    global _FLAGS_CACHE
-    _FLAGS_CACHE = dict(merged)
+    global _flags_cache
+    _flags_cache = dict(merged)
     return dict(merged)
 
 
@@ -154,13 +170,13 @@ def is_enabled(name: str, *, flags: dict[str, bool] | None = None) -> bool:
 
     candidate_flags = flags
     if candidate_flags is None:
-        global _FLAGS_CACHE
-        if _FLAGS_CACHE is None:
+        global _flags_cache
+        if _flags_cache is None:
             from . import get_settings
 
             candidate_flags = read_flags(get_settings())
         else:
-            candidate_flags = _FLAGS_CACHE
+            candidate_flags = _flags_cache
 
     return candidate_flags.get(_normalise_name(name), False)
 

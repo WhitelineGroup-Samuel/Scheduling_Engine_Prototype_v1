@@ -10,6 +10,7 @@ Deterministic, idempotent seed routines for development and test databases.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -34,15 +35,10 @@ class OrganisationSeed:
 
 @dataclass(slots=True)
 class SeedPlan:
-    """Container for ordered seed tasks."""
+    organisations: Sequence[OrganisationSeed] = field(default_factory=tuple)
 
-    organisations: tuple[OrganisationSeed, ...] = field(default_factory=tuple)
-
-    def __post_init__(self) -> None:  # noqa: D401 - docstring inherited from class
-        """Normalise the organisations collection to an immutable tuple."""
-
-        if not isinstance(self.organisations, tuple):
-            self.organisations = tuple(self.organisations)
+    def __post_init__(self) -> None:
+        self.organisations = tuple(self.organisations)
 
 
 def _fallback_normalize_slug(value: str) -> str:
@@ -67,6 +63,7 @@ def _normalize_inputs(name: str, slug: str | None) -> tuple[str, str]:
             derived_slug = normaliser(normalised_name)
         else:
             derived_slug = _fallback_normalize_slug(normalised_name)
+    assert isinstance(derived_slug, str)
     return normalised_name, derived_slug
 
 

@@ -74,7 +74,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict
+from typing import Any, Dict, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import typer
@@ -86,6 +86,14 @@ from app.db.healthcheck import ping
 from app.errors.exceptions import ConfigError
 from app.errors.handlers import wrap_cli_main
 from app.utils.logging_tools import new_trace_id, with_trace_id
+
+
+def _ctx_dict(ctx: typer.Context) -> dict[str, Any]:
+    obj = ctx.obj
+    if isinstance(obj, dict):
+        return cast(dict[str, Any], obj)
+    return {}
+
 
 __all__ = ["check_env_command"]
 
@@ -104,7 +112,7 @@ def _sanitize_database_url(url: str) -> str:
 def _build_summary(settings: Any, sanitized_url: str) -> dict[str, Any]:
     """Construct the non-sensitive environment summary payload."""
 
-    return {
+    payload: dict[str, Any] = {
         "env": settings.APP_ENV,
         "log_level": settings.LOG_LEVEL,
         "log_json": bool(getattr(settings, "LOG_JSON", False)),
@@ -116,6 +124,7 @@ def _build_summary(settings: Any, sanitized_url: str) -> dict[str, Any]:
             "name": settings.DB_NAME,
         },
     }
+    return payload
 
 
 def _validate_timezone(timezone: str) -> list[str]:
@@ -171,7 +180,8 @@ def check_env_command(
     """
 
     settings = get_settings()
-    global_verbose = bool((ctx.obj or {}).get("verbose"))
+    ctxd = _ctx_dict(ctx)
+    global_verbose = bool(ctxd.get("verbose", False))
     effective_verbose = verbose or global_verbose
     configure_logging(
         settings,
@@ -179,7 +189,7 @@ def check_env_command(
     )
     logger = logging.getLogger("app.cli.check_env")
 
-    default_json = bool((ctx.obj or {}).get("default_json"))
+    default_json = bool(ctxd.get("default_json", False))
     emit_json = json_output if json_output is not None else default_json
 
     with with_trace_id(new_trace_id()):
