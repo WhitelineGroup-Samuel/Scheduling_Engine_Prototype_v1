@@ -1,47 +1,43 @@
-"""
-TEST DESCRIPTION BLOCK — tests/integration/test_migrations.py
+"""Integration tests verifying Alembic migrations apply cleanly."""
 
-Purpose
--------
-When Alembic is wired, prove that migrations can be discovered and applied to the test DB.
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: subprocess, sys, pathlib
-   - third-party: pytest, sqlalchemy (inspect), sqlalchemy.text
-   - local: tests/fixtures/db.py (engine), alembic configuration helpers (if any)
-
-2) Marker:
-   - @pytest.mark.integration
-
-3) Pre-conditions:
-   - alembic.ini must be configured.
-   - app/db/alembic_env.py must set target_metadata.
-
-4) Tests:
-   - test_alembic_upgrade_head_subprocess(engine):
-       * Act: run "alembic upgrade head" via subprocess (cwd=repo root).
-       * Assert: exit code 0; afterward, "alembic_version" table exists and version != None.
-   - test_alembic_stamp_head_no_apply(engine): (optional)
-       * For scenarios where we only stamp, not apply; assert success and version table present.
-
-5) Cleanup:
-   - Not required if using a separate test DB and rollback per test; however,
-     if applying DDL changes, scope this test carefully since DDL isn't rolled back.
-     Consider running once per session or using a dedicated DB schema.
-
-Dependencies on other scripts
------------------------------
-- alembic.ini, app/db/alembic_env.py
-- tests/fixtures/db.py
-
-Notes
------
-- If migrations are not ready yet, mark these tests with @pytest.mark.skip(reason="...") or conditionally skip.
-- Once models exist, add explicit assertions that expected tables/columns/indexes exist after upgrade.
-"""
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
+from sqlalchemy import inspect, text
+from sqlalchemy.engine import Engine
 
-pytestmark = pytest.mark.skip(reason="Migrations not wired yet")
+pytestmark = pytest.mark.integration
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_alembic_upgrade_head_subprocess(engine: Engine) -> None:
+    """Run ``alembic upgrade head`` and confirm the version table is populated."""
+
+    pytest.importorskip("alembic", reason="alembic not installed")
+    command = [sys.executable, "-m", "alembic", "upgrade", "head"]
+    completed = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        pytest.fail(
+            "alembic upgrade head failed\n"
+            f"stdout:\n{completed.stdout}\n"
+            f"stderr:\n{completed.stderr}"
+        )
+
+    inspector = inspect(engine)
+    assert inspector.has_table("alembic_version"), "alembic_version table missing"
+    with engine.connect() as connection:
+        version = connection.execute(text("select version_num from alembic_version"))
+        version_num = version.scalar_one()
+    assert isinstance(version_num, str)
+    assert version_num.strip()
