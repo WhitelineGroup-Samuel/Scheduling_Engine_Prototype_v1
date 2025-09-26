@@ -5,7 +5,8 @@ from __future__ import annotations
 import importlib
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Iterator
+from types import ModuleType
+from typing import Callable, ContextManager, Iterator
 
 import pytest
 
@@ -16,6 +17,7 @@ pytestmark = pytest.mark.unit
 TO_LOCAL = getattr(time_utils, "to_local", None)
 PARSE_ISO8601 = getattr(time_utils, "parse_iso8601", None)
 
+_time_fixture_module: ModuleType | None
 try:
     _time_fixture_module = importlib.import_module("tests.fixtures.time")
 except ModuleNotFoundError:
@@ -26,7 +28,7 @@ if _time_fixture_module and hasattr(_time_fixture_module, "freeze_time"):
 else:
 
     @pytest.fixture(name="freeze_time")
-    def freeze_time_fixture() -> Callable[[datetime], Iterator[datetime]]:
+    def freeze_time_fixture() -> Callable[[datetime], ContextManager[datetime]]:
         """Provide a minimal freezer context manager for deterministic tests."""
 
         @contextmanager
@@ -47,7 +49,7 @@ def test_now_utc_is_aware() -> None:
 
 @pytest.mark.skipif(TO_LOCAL is None, reason="to_local helper not implemented")
 def test_to_local_converts_correctly(
-    freeze_time: Callable[[datetime], Iterator[datetime]]
+    freeze_time: Callable[[datetime], ContextManager[datetime]]
 ) -> None:
     """Converting UTC timestamps to the Melbourne timezone preserves awareness."""
 

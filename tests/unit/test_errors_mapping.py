@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from typing import Any, cast
 
 import pytest
-from pydantic import BaseModel, ValidationError as PydanticValidationError
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
 from app.errors.codes import ErrorCode
@@ -93,7 +95,7 @@ def test_map_pydantic_validation_error_to_validation_error() -> None:
         value: int
 
     with pytest.raises(PydanticValidationError) as excinfo:
-        DemoModel(value="not-an-int")
+        DemoModel(value=cast(Any, "not-an-int"))
 
     mapped = map_exception(excinfo.value)
 

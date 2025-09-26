@@ -41,7 +41,7 @@ _SENSITIVE_FIELD_NAMES: set[str] = {
 _CREDENTIAL_RE = re.compile(r"://([^:/?#]+):([^@]+)@")
 _SECRET_RE = re.compile(r"(?i)(password|secret|token)=([^&\s]+)")
 
-_CONFIGURED: bool = False
+_configured: bool = False
 
 
 def _ensure_trace_id() -> str:
@@ -240,8 +240,8 @@ def configure_logging(
     app_logger = logging.getLogger("app")
     app_logger.setLevel(level_name)
 
-    global _CONFIGURED
-    _CONFIGURED = True
+    global _configured
+    _configured = True
 
     return app_logger
 
@@ -249,8 +249,8 @@ def configure_logging(
 def get_logger(name: str) -> logging.Logger:
     """Return a named logger, ensuring configuration is applied once."""
 
-    global _CONFIGURED
-    if not _CONFIGURED:
+    global _configured
+    if not _configured:
         from . import get_settings
 
         configure_logging(get_settings())

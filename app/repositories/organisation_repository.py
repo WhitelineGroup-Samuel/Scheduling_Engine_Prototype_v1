@@ -50,25 +50,24 @@ class OrganisationRepository(BaseRepository):
     """Data-access helpers for the ``organisations`` table."""
 
     def get_by_id(self, session: Session, organisation_id: int) -> Organisation | None:
-        """Return an organisation by its primary key if present."""
-
-        return session.get(Organisation, organisation_id)
+        # Good as-is, but if mypy still complains, wrap with cast:
+        # return cast(Organisation | None, session.get(Organisation, organisation_id))
+        result: Organisation | None = session.get(Organisation, organisation_id)
+        return result
 
     def get_by_name(self, session: Session, name: str) -> Organisation | None:
-        """Return an organisation matching the provided business name."""
-
         cleaned = _normalise_name(name)
         stmt: Select[Any] = select(Organisation).where(
             Organisation.organisation_name == cleaned
         )
-        return session.execute(stmt).scalar_one_or_none()
+        # ↓↓↓ switch to scalars().one_or_none() so the result is typed as Organisation | None
+        return cast(Organisation | None, session.execute(stmt).scalars().one_or_none())
 
     def get_by_slug(self, session: Session, slug: str) -> Organisation | None:
-        """Return an organisation by slug."""
-
         normalised = _normalise_slug(slug)
         stmt: Select[Any] = select(Organisation).where(Organisation.slug == normalised)
-        return session.execute(stmt).scalar_one_or_none()
+        # ↓↓↓ same pattern here
+        return cast(Organisation | None, session.execute(stmt).scalars().one_or_none())
 
     def list(
         self,
@@ -188,11 +187,14 @@ class OrganisationRepository(BaseRepository):
                 return refetched
             raise
 
-    def delete(self, session: Session, organisation_id: int) -> None:
-        """Delete an organisation by its primary key."""
+    def delete(self, session: Session, instance: Organisation) -> None:
+        """Delete an organisation instance."""
+        super().delete(session, instance)
 
+    def delete_by_id(self, session: Session, organisation_id: int) -> None:
+        """Delete an organisation by its primary key."""
         stmt: Select[Any] = select(Organisation).where(
             Organisation.organisation_id == organisation_id
         )
         instance: Organisation = session.execute(stmt).scalar_one()
-        super().delete(session, instance)
+        self.delete(session, instance)

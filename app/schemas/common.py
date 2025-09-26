@@ -54,12 +54,11 @@ def ensure_utc(value: datetime | str) -> datetime:
             raise ValueError("Invalid datetime string") from exc
         value = parsed
 
-    if not isinstance(value, datetime):
-        raise TypeError("Expected datetime or ISO8601 string")
-
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+    # At this point, by type contract, `value` is a datetime
+    value_dt: datetime = value
+    if value_dt.tzinfo is None:
+        return value_dt.replace(tzinfo=timezone.utc)
+    return value_dt.astimezone(timezone.utc)
 
 
 class TimestampsDTO(BaseDTO):

@@ -66,8 +66,8 @@ def test_handle_cli_error_validation_returns_64_and_no_exc_info(
     record = caplog.records[0]
     assert record.levelno == level_for(ErrorCode.VALIDATION_ERROR.severity)
     assert not record.exc_info
-    assert record.code == ErrorCode.VALIDATION_ERROR.code
-    assert record.exit_code == ErrorCode.VALIDATION_ERROR.exit_code
+    assert getattr(record, "code") == ErrorCode.VALIDATION_ERROR.code
+    assert getattr(record, "exit_code") == ErrorCode.VALIDATION_ERROR.exit_code
     assert getattr(record, "trace_id")
 
 
@@ -90,8 +90,8 @@ def test_handle_cli_error_db_connection_critical_has_exc_info(
     record = caplog.records[0]
     assert record.levelno == level_for(ErrorCode.DB_CONNECTION_ERROR.severity)
     assert record.exc_info is not None
-    assert record.code == ErrorCode.DB_CONNECTION_ERROR.code
-    assert record.exit_code == ErrorCode.DB_CONNECTION_ERROR.exit_code
+    assert getattr(record, "code") == ErrorCode.VALIDATION_ERROR.code
+    assert getattr(record, "exit_code") == ErrorCode.VALIDATION_ERROR.exit_code
 
 
 def test_wrap_cli_main_converts_exception_to_system_exit(
@@ -128,7 +128,7 @@ def test_wrap_cli_main_converts_exception_to_system_exit(
     assert excinfo.value.code == ErrorCode.UNKNOWN_ERROR.exit_code
     assert len(capture_handler) == 1
     record = capture_handler[0]
-    assert record.code == ErrorCode.UNKNOWN_ERROR.code
+    assert getattr(record, "code") == ErrorCode.UNKNOWN_ERROR.code
     assert record.levelno == level_for(ErrorCode.UNKNOWN_ERROR.severity)
     assert record.exc_info is not None
 

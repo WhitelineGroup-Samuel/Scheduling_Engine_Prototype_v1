@@ -13,11 +13,13 @@ class _YamlProtocol(Protocol):  # pragma: no cover - typing helper
 
     def safe_load(self, stream: str) -> Any:  # pragma: no cover - signature stub
         """Deserialize YAML from ``stream``."""
+        ...
 
     def safe_dump(
         self, data: Any, *, default_flow_style: bool = ...
     ) -> str:  # pragma: no cover - signature stub
         """Serialize ``data`` to a YAML string."""
+        ...
 
 
 def ensure_dir(path: str | Path) -> Path:

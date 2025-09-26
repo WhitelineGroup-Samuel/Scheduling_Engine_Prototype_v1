@@ -102,7 +102,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Mapping
+from typing import Any, Mapping, cast
 
 import typer
 from sqlalchemy.orm import Session
@@ -119,7 +119,16 @@ from app.utils.logging_tools import new_trace_id, with_trace_id
 
 __all__ = ["seed_data_command"]
 
+
 _DEFAULT_ORG_NAME = "Whiteline Demo"
+
+
+# Helper to extract and type ctx.obj as dict[str, Any]
+def _ctx_dict(ctx: typer.Context) -> dict[str, Any]:
+    obj = ctx.obj
+    if isinstance(obj, dict):
+        return cast(dict[str, Any], obj)
+    return {}
 
 
 def _extract_identifier(entity: Any) -> str | None:
@@ -204,8 +213,15 @@ def _echo_summary(summary: Mapping[str, Any]) -> None:
     typer.echo(f"Seed summary: {counts}")
     items = summary.get("items", [])
     if isinstance(items, list):
-        for item in items:
-            typer.echo(f"  - {item}")
+        # Normalise to a concrete element type to satisfy type checkers
+        items_list: list[Mapping[str, Any] | object] = cast(
+            list[Mapping[str, Any] | object], items
+        )
+        for item_any in items_list:
+            if isinstance(item_any, Mapping):
+                typer.echo(f"  - {dict(cast(Mapping[str, Any], item_any))}")
+            else:
+                typer.echo(f"  - {item_any}")
 
 
 @wrap_cli_main
@@ -240,7 +256,8 @@ def seed_data_command(
     """
 
     settings = get_settings()
-    global_verbose = bool((ctx.obj or {}).get("verbose"))
+    ctxd = _ctx_dict(ctx)
+    global_verbose = bool(ctxd.get("verbose", False))
     effective_verbose = verbose or global_verbose
     configure_logging(
         settings,
@@ -275,17 +292,21 @@ def seed_data_command(
 
             with get_session(session_factory) as session:
                 result = seed_minimal(session, org_name=org_name)
+            result_dict: dict[str, Any] = dict(result)
 
             duration_ms = (time.monotonic() - start) * 1000.0
+            inserted = int(result_dict["inserted"]) if "inserted" in result_dict else 0
+            updated = int(result_dict["updated"]) if "updated" in result_dict else 0
+            skipped = int(result_dict["skipped"]) if "skipped" in result_dict else 0
             logger.info(
                 "seed-data applied",
                 extra={
-                    "inserted": result.get("inserted", 0),
-                    "updated": result.get("updated", 0),
-                    "skipped": result.get("skipped", 0),
+                    "inserted": inserted,
+                    "updated": updated,
+                    "skipped": skipped,
                     "duration_ms": duration_ms,
                 },
             )
-            _echo_summary(result)
+            _echo_summary(result_dict)
         finally:
             engine.dispose()

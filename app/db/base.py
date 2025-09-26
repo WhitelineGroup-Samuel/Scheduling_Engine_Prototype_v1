@@ -8,6 +8,7 @@ Purpose:
 
 from __future__ import annotations
 
+import importlib
 from typing import Final
 
 import sqlalchemy as sa
@@ -34,16 +35,16 @@ class Base(DeclarativeBase):
 
 metadata = Base.metadata
 
-_MODELS_IMPORTED: bool = False
+_models_imported: bool = False
 
 
 def import_all_models() -> None:
     """Import all ORM model modules so ``Base.metadata`` is populated."""
 
-    global _MODELS_IMPORTED
-    if _MODELS_IMPORTED:
+    global _models_imported
+    if _models_imported:
         return
 
-    import app.models.core  # noqa: F401
+    importlib.import_module("app.models.core")
 
-    _MODELS_IMPORTED = True
+    _models_imported = True
