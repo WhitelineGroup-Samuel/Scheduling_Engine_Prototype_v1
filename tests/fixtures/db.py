@@ -1,60 +1,141 @@
-"""
-TEST DESCRIPTION BLOCK — tests/fixtures/db.py
+"""Database fixtures providing transactional isolation for integration tests."""
 
-Purpose
--------
-Provide **database fixtures** for integration tests:
-- Engine creation tied to the test environment.
-- Transactional Session per test with automatic ROLLBACK (no persistent writes).
-- Optional Alembic migration application fixture (enabled once Alembic wiring exists).
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: os
-   - third-party: pytest, sqlalchemy (create_engine, Engine, text), sqlalchemy.orm (sessionmaker, Session)
-   - local: app.config.settings (for DB settings and URL), app.db.engine (if you expose factory),
-            alembic (optional) for migration fixture when enabled.
+import os
+from collections.abc import Iterator
 
-2) Fixture: engine() -> sqlalchemy.Engine  [scope="session"]
-   - Build a SQLAlchemy Engine using DATABASE_URL (constructed from parts if necessary).
-   - echo=False, future=True, pool_pre_ping=True.
-   - yield the engine, then dispose after session ends.
+import pytest
+from sqlalchemy import Engine, create_engine, event, text
+from sqlalchemy.engine import Connection, make_url
+from sqlalchemy.orm import Session, SessionTransaction, sessionmaker
 
-3) Fixture: db_connection(engine) -> Connection  [scope="function"]
-   - engine.connect()
-   - yield connection
-   - finally: connection.close()
+from app.config.constants import DB_SCHEME
+from app.config.settings import get_settings
+from app.db.engine import create_engine_from_settings
 
-4) Fixture: session_factory(engine) -> sessionmaker  [scope="session"]
-   - sessionmaker(bind=engine, expire_on_commit=False, autoflush=False)
 
-5) Fixture: db_session(session_factory, engine) -> Session  [scope="function"]
-   - Begin a transaction on connection.
-   - Bind Session to connection using session_factory.
-   - yield Session to test.
-   - After test: rollback transaction, close session.
+def _normalise_drivername(url: str) -> str:
+    """Return a connection URL that explicitly uses the psycopg driver."""
 
-6) (Enable later) Fixture: migrated_db(engine) -> None  [scope="session"]
-   - Use Alembic programmatic API or subprocess call "alembic upgrade head".
-   - Ensure it only runs once per test session.
-   - Intended for tests that require schema to be at head.
+    parsed = make_url(url)
+    if parsed.drivername == DB_SCHEME:
+        return url
+    normalised = parsed.set(drivername=DB_SCHEME)
+    return str(normalised)
 
-Expectations
-------------
-- Fixtures must NOT create or drop databases.
-- All writes during tests are rolled back per test function (db_session).
-- All tests should default to read-only unless explicitly marked otherwise.
-- Engine and sessions must be created with SQLAlchemy 2.x style.
 
-Dependencies on other scripts
------------------------------
-- app/config/settings.py : DB URL construction and validation
-- app/db/engine.py : (optional) helper to create engine using uniform options
-- Alembic config: app/db/alembic_env.py and alembic.ini (for migrated_db)
+@pytest.fixture(scope="session")
+def engine() -> Iterator[Engine]:
+    """Return a SQLAlchemy engine bound to the test database."""
 
-Notes
------
-- Keep fixtures small and explicit; avoid session/engine global state.
-- Use @pytest.mark.integration on tests that rely on these fixtures.
-"""
+    settings = get_settings()
+    app_env = os.getenv("APP_ENV") or settings.APP_ENV
+    if app_env != "test":
+        raise RuntimeError("Integration tests must run with APP_ENV=test")
+
+    effective_url = _normalise_drivername(settings.effective_database_url)
+    if effective_url == settings.effective_database_url:
+        sa_engine = create_engine_from_settings(settings, echo_sql=False, role="pytest")
+    else:
+        sa_engine = create_engine(
+            effective_url,
+            echo=False,
+            pool_pre_ping=True,
+        )
+    try:
+        yield sa_engine
+    finally:
+        sa_engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def db_connection(engine: Engine) -> Iterator[Connection]:
+    """Yield a raw SQLAlchemy connection for read-only queries."""
+
+    connection = engine.connect()
+    try:
+        connection.execute(text("select 1"))
+        yield connection
+    finally:
+        connection.close()
+
+
+@pytest.fixture(scope="session")
+def session_factory(engine: Engine) -> sessionmaker[Session]:
+    """Return a configured session factory bound to the shared engine."""
+
+    factory = sessionmaker[Session](
+        bind=engine, expire_on_commit=False, autoflush=False
+    )
+    return factory
+
+
+@pytest.fixture(scope="function")
+def db_session(
+    session_factory: sessionmaker[Session],
+    engine: Engine,
+) -> Iterator[Session]:
+    """Provide a transactional session that rolls back after each test."""
+
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = session_factory(bind=connection)
+    session.execute(text("SET LOCAL TIME ZONE 'UTC'"))
+    session.begin_nested()
+
+    def _restart_savepoint(sess: Session, transaction_: SessionTransaction) -> None:
+        """Re-establish nested SAVEPOINTs after commits within tests."""
+
+        parent = getattr(transaction_, "parent", None) or getattr(
+            transaction_, "_parent", None
+        )
+        if (
+            transaction_.nested
+            and parent is not None
+            and not getattr(parent, "nested", False)
+        ):
+            sess.begin_nested()
+
+    event.listen(session, "after_transaction_end", _restart_savepoint)
+
+    try:
+        yield session
+    finally:
+        event.remove(session, "after_transaction_end", _restart_savepoint)
+        try:
+            session.close()
+        finally:
+            if transaction.is_active:
+                transaction.rollback()
+            connection.close()
+
+
+@pytest.fixture(scope="session")
+def migrated_db(engine: Engine) -> Iterator[None]:
+    """Apply Alembic migrations to the test database once per test session."""
+
+    pytest.importorskip("alembic", reason="alembic not installed")
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[2]
+    command = [sys.executable, "-m", "alembic", "upgrade", "head"]
+    completed = subprocess.run(
+        command,
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "alembic upgrade head failed\n"
+            f"stdout:\n{completed.stdout}\n"
+            f"stderr:\n{completed.stderr}"
+        )
+    try:
+        yield
+    finally:
+        engine.dispose()

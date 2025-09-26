@@ -1,43 +1,33 @@
-"""
-TEST DESCRIPTION BLOCK — tests/integration/test_db_connect.py
+"""Connectivity smoke tests for the integration database."""
 
-Purpose
--------
-Validate that the test database is reachable via SQLAlchemy and responds to **read-only** queries.
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: os
-   - third-party: pytest, sqlalchemy (text)
-   - local: fixtures from tests/fixtures/db.py (engine or db_connection)
-
-2) Marker:
-   - Use @pytest.mark.integration for the test module or individual tests.
-
-3) Tests:
-   - test_engine_can_connect(engine):
-       * Act: with engine.connect() as conn: SELECT current_database(), version()
-       * Assert: DB name == "scheduling_test"; version string non-empty.
-   - test_readonly_query_succeeds(db_connection):
-       * Act: SELECT NOW()
-       * Assert: single row returned; value is non-null.
-
-Constraints
------------
-- No writes (no INSERT/UPDATE/CREATE/DROP).
-- Keep runtime < 0.2s ideally.
-
-Dependencies on other scripts
------------------------------
-- tests/fixtures/db.py : engine, db_connection
-- app/config/settings.py : for connection URL under the hood
-
-Notes
------
-- This test gives a clear, early signal if the DB service isn't available locally or in CI.
-"""
+import os
 
 import pytest
+from sqlalchemy import text
+from sqlalchemy.engine import Connection, Engine
 
-pytestmark = pytest.mark.skip(reason="Migrations not wired yet")
+pytestmark = pytest.mark.integration
+
+
+def test_engine_can_connect(engine: Engine) -> None:
+    """Ensure the SQLAlchemy engine can reach the ``scheduling_test`` database."""
+
+    assert os.getenv("APP_ENV") == "test"
+    with engine.connect() as connection:
+        database_name = connection.execute(text("select current_database()"))
+        version_info = connection.execute(text("select version()"))
+        db_name = database_name.scalar_one()
+        version = version_info.scalar_one()
+    assert db_name == "scheduling_test"
+    assert isinstance(version, str)
+    assert version.strip()
+
+
+def test_readonly_query_succeeds(db_connection: Connection) -> None:
+    """Execute a read-only query to confirm the connection is usable."""
+
+    current_time = db_connection.execute(text("select now() at time zone 'utc'"))
+    value = current_time.scalar_one()
+    assert value is not None

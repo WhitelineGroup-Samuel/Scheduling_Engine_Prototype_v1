@@ -1,37 +1,52 @@
-"""
-TEST DESCRIPTION BLOCK — tests/fixtures/time.py
+"""Time control helpers to make integration tests deterministic."""
 
-Purpose
--------
-Provide **time-related** test utilities/fixtures to make time-dependent tests deterministic.
+from __future__ import annotations
 
-What to include
----------------
-1) Imports:
-   - stdlib: datetime, contextlib
-   - third-party: pytest, freezegun (optional) OR implement a minimal freezer using monkeypatch
-   - local: app.utils.time (if helpers exist like now_utc(), to_local(), etc.)
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import datetime, timezone
 
-2) Fixture: freeze_time()  [scope="function"]
-   - Either:
-     a) Use freezegun.freeze_time("2024-01-01T00:00:00Z") as a context manager and yield.
-     b) Or monkeypatch datetime in app.utils.time to return a fixed aware UTC datetime.
-   - After test: automatically restore real time.
+import pytest
 
-3) Helper contextmanager (optional): fixed_utc(dt: datetime)
-   - Generic way to freeze time inside a "with" block for ad-hoc tests.
+try:  # pragma: no cover - optional dependency
+    from freezegun import freeze_time as _freezegun_freeze_time
+except ImportError:  # pragma: no cover - executed when freezegun missing
+    _freezegun_freeze_time = None
 
-Expectations
-------------
-- All frozen datetimes must be timezone-aware (UTC) to avoid naive/aware mixing.
-- Tests consuming this fixture should not rely on system clock.
+from app.utils import time as time_utils
 
-Dependencies on other scripts
------------------------------
-- app/utils/time.py : now_utc(), to_local(), parse_iso8601()
+_FROZEN_INSTANT = datetime(2024, 1, 1, tzinfo=timezone.utc)
 
-Notes
------
-- If you prefer not to add freezegun dependency now, provide a monkeypatch-based approach.
-- Keep the API tiny to minimize maintenance overhead.
-"""
+
+@contextmanager
+def fixed_utc(dt: datetime) -> Iterator[None]:
+    """Temporarily freeze :func:`app.utils.time.now_utc` at ``dt``."""
+
+    if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+        raise ValueError("Frozen datetime must be timezone-aware (UTC).")
+
+    if _freezegun_freeze_time is not None:
+        with _freezegun_freeze_time(dt):
+            yield
+        return
+
+    original_now_utc = time_utils.now_utc
+
+    def _patched_now_utc() -> datetime:
+        """Return the frozen UTC instant."""
+
+        return dt
+
+    setattr(time_utils, "now_utc", _patched_now_utc)
+    try:
+        yield
+    finally:
+        setattr(time_utils, "now_utc", original_now_utc)
+
+
+@pytest.fixture(scope="function")
+def freeze_time() -> Iterator[datetime]:
+    """Freeze application time to ``2024-01-01T00:00:00Z`` for the duration of a test."""
+
+    with fixed_utc(_FROZEN_INSTANT):
+        yield _FROZEN_INSTANT
