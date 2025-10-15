@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.seed import OrganisationSeed, SeedPlan, seed_from_plan, seed_minimal
-from app.repositories.organisation_repository import OrganisationRepository
+from app.models.system.organisations import Organisation
+from app.repositories.system.organisation_repository import OrganisationRepository
 
 pytestmark = pytest.mark.integration
 
@@ -28,7 +30,6 @@ def test_seed_minimal_idempotent(db_session: Session) -> None:
 def test_seed_minimal_dry_run_matches_apply(db_session: Session) -> None:
     """A dry-run should report the same actions as an actual apply."""
 
-    repository = OrganisationRepository()
     organisation_name = "Acme FC Dry Run"
     plan = SeedPlan(organisations=(OrganisationSeed(name=organisation_name),))
 
@@ -37,19 +38,16 @@ def test_seed_minimal_dry_run_matches_apply(db_session: Session) -> None:
     try:
         dry_run_result = seed_from_plan(db_session, plan)
         assert dry_run_result["inserted"] == 1
-        dry_run_summary = {
-            (item.get("name"), item.get("slug")) for item in dry_run_result["items"]
-        }
+        dry_run_summary = {(item.get("name"), item.get("slug")) for item in dry_run_result["items"]}
     finally:
         dry_run_transaction.rollback()
 
-    assert repository.get_by_name(db_session, organisation_name) is None
+    by_name = list(db_session.execute(select(Organisation).where(Organisation.organisation_name == organisation_name)).scalars())
+    assert not by_name
 
     apply_result = seed_from_plan(db_session, plan)
     assert apply_result["inserted"] == 1
-    apply_summary = {
-        (item.get("name"), item.get("slug")) for item in apply_result["items"]
-    }
+    apply_summary = {(item.get("name"), item.get("slug")) for item in apply_result["items"]}
     assert dry_run_summary == apply_summary
 
     repeat_result = seed_from_plan(db_session, plan)
@@ -60,9 +58,9 @@ def test_seed_minimal_dry_run_matches_apply(db_session: Session) -> None:
 def test_seed_minimal_duplicate_name_raises(db_session: Session) -> None:
     """Direct repository usage should raise when attempting duplicate inserts."""
 
-    repository = OrganisationRepository()
+    repository = OrganisationRepository(db_session)
     name = "Seed Duplicate"
-    repository.create(db_session, name=name)
+    repository.create({"organisation_name": name})
     with pytest.raises(IntegrityError):
-        repository.create(db_session, name=name)
+        repository.create({"organisation_name": name})
     db_session.rollback()

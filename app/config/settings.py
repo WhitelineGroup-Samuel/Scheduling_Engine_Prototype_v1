@@ -13,23 +13,58 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from importlib import metadata
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal, cast
 from urllib.parse import quote_plus
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .constants import DB_SCHEME, DEFAULT_TZ
 
+try:
+    from dotenv import dotenv_values, load_dotenv
+except Exception:
+
+    def load_dotenv(*_: Any, **__: Any) -> None:  # underscores silence ARG001
+        return None
+
+    def dotenv_values(*_: Any, **__: Any) -> dict[str, str]:
+        return {}
+
+
+def _env_file_for(target_env: str) -> str:
+    """Map 'dev'/'test' to the appropriate .env file name."""
+    e = (target_env or "dev").lower()
+    return ".env.test" if e == "test" else ".env"
+
+
+def _load_file_vars_for_env(target_env: str) -> dict[str, Any]:
+    """Read key/values directly from the env file for the requested env.
+
+    Does not mutate os.environ; lets us construct Settings deterministically.
+    """
+    try:
+        file_vars = dotenv_values(_env_file_for(target_env))
+        # strip None values (dotenv returns None for missing)
+        return {k: v for k, v in file_vars.items() if v is not None}
+    except Exception:
+        return {}
+
+
+# Load the appropriate env file once on import (dev/test only).
+_env = os.getenv("APP_ENV", "dev").lower()
+_env_file = ".env.test" if _env == "test" else ".env"
+if load_dotenv is not None:
+    # override=False so real environment variables still win in CI/Prod
+    load_dotenv(_env_file, override=False)
+
 
 class BaseSettings(BaseModel):
     """Lightweight settings base class that hydrates values from the environment."""
 
     model_config = ConfigDict(extra="ignore")
-    ENV_PREFIX: str = ""
+    ENV_PREFIX: ClassVar[str] = ""
 
-    def __init__(
-        self, **data: Any
-    ) -> None:  # noqa: D107 - documented in class docstring
+    def __init__(self, **data: Any) -> None:  # noqa: D107 - documented in class docstring
         merged = {**self._load_environment_values(), **data}
         super().__init__(**merged)
 
@@ -67,7 +102,7 @@ class Settings(BaseSettings):
     """Centralised configuration model for the scheduling engine."""
 
     model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
-    ENV_PREFIX: str = ""
+    ENV_PREFIX: ClassVar[str] = ""
 
     APP_NAME: str = "scheduling-engine"
     APP_VERSION: str = Field(default_factory=_default_app_version)
@@ -90,7 +125,7 @@ class Settings(BaseSettings):
 
         if isinstance(value, bool) or value is None:
             return bool(value)
-        if isinstance(value, (int, float)):
+        if isinstance(value, int | float):
             return bool(value)
         if isinstance(value, str):
             lowered = value.strip().lower()
@@ -113,7 +148,7 @@ class Settings(BaseSettings):
         return stripped
 
     @model_validator(mode="after")
-    def _validate_database_parts(self) -> "Settings":
+    def _validate_database_parts(self) -> Settings:
         """Validate that database configuration is complete when composing URLs."""
 
         if self.DATABASE_URL:
@@ -142,24 +177,38 @@ class Settings(BaseSettings):
         if self.DATABASE_URL:
             return self.DATABASE_URL
 
-        if not all(
-            (self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_NAME)
-        ):
+        if not all((self.DB_USER, self.DB_PASSWORD, self.DB_HOST, self.DB_PORT, self.DB_NAME)):
             raise ValueError("database configuration incomplete for URL composition")
 
-        user = quote_plus(self.DB_USER or "")
-        password = quote_plus(self.DB_PASSWORD or "")
-        host = self.DB_HOST or "localhost"
-        port = self.DB_PORT
-        name = self.DB_NAME or ""
+        user = quote_plus(cast(str, self.DB_USER))
+        password = quote_plus(cast(str, self.DB_PASSWORD))
+        host = cast(str, self.DB_HOST)
+        port = cast(int, self.DB_PORT)
+        name = cast(str, self.DB_NAME)
         return f"{DB_SCHEME}://{user}:{password}@{host}:{port}/{name}"
 
 
-@lru_cache(maxsize=1)
-def get_settings(**kwargs: Any) -> Settings:
-    """Return a memoized singleton instance of :class:`Settings`."""
+@lru_cache(maxsize=3)
+def get_settings(env: str | None = None) -> Settings:
+    """Return Settings for the requested environment ('dev'|'test'|'prod').
 
-    return Settings(**kwargs)
+    - If env is provided, read that file directly (.env or .env.test) so we don't
+      rely on whatever was loaded at import time.
+    - If env is None, fall back to current process environment (which your import-
+      time load_dotenv() already initialized).
+    """
+    selected_env: str = env if env is not None else (os.getenv("APP_ENV") or "dev")
+    selected = selected_env.lower()
+
+    # read the right .env file into a dict (does not touch os.environ)
+    file_vars = _load_file_vars_for_env(selected)
+
+    # ensure APP_ENV is set consistently
+    file_vars["APP_ENV"] = selected
+
+    # Build Settings; BaseSettings merges os.environ values first, then **data**.
+    # Because we pass file_vars as **data**, those values win over os.environ.
+    return Settings(**file_vars)
 
 
 __all__ = ["Settings", "get_settings"]

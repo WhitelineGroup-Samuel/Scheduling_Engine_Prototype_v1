@@ -15,7 +15,7 @@ from app.errors.codes import ErrorCode
 from app.errors.exceptions import DBConnectionError, ValidationError
 from app.errors.handlers import handle_cli_error, level_for, wrap_cli_main
 
-setattr(Settings, "ENV_PREFIX", "")
+Settings.ENV_PREFIX = ""
 
 pytestmark = pytest.mark.unit
 
@@ -49,9 +49,7 @@ def configured_logger(settings: Settings) -> logging.Logger:
     return logging.getLogger("app.tests.handlers")
 
 
-def test_handle_cli_error_validation_returns_64_and_no_exc_info(
-    configured_logger: logging.Logger, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_handle_cli_error_validation_returns_64_and_no_exc_info(configured_logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
     """Validation errors should log once at ERROR level without tracebacks."""
 
     caplog.clear()
@@ -66,14 +64,12 @@ def test_handle_cli_error_validation_returns_64_and_no_exc_info(
     record = caplog.records[0]
     assert record.levelno == level_for(ErrorCode.VALIDATION_ERROR.severity)
     assert not record.exc_info
-    assert getattr(record, "code") == ErrorCode.VALIDATION_ERROR.code
-    assert getattr(record, "exit_code") == ErrorCode.VALIDATION_ERROR.exit_code
-    assert getattr(record, "trace_id")
+    assert record.code == ErrorCode.VALIDATION_ERROR.code
+    assert record.exit_code == ErrorCode.VALIDATION_ERROR.exit_code
+    assert record.trace_id
 
 
-def test_handle_cli_error_db_connection_critical_has_exc_info(
-    configured_logger: logging.Logger, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_handle_cli_error_db_connection_critical_has_exc_info(configured_logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
     """Critical database errors should include traceback information."""
 
     caplog.clear()
@@ -90,13 +86,11 @@ def test_handle_cli_error_db_connection_critical_has_exc_info(
     record = caplog.records[0]
     assert record.levelno == level_for(ErrorCode.DB_CONNECTION_ERROR.severity)
     assert record.exc_info is not None
-    assert getattr(record, "code") == ErrorCode.VALIDATION_ERROR.code
-    assert getattr(record, "exit_code") == ErrorCode.VALIDATION_ERROR.exit_code
+    assert record.code == ErrorCode.DB_CONNECTION_ERROR.code
+    assert record.exit_code == ErrorCode.DB_CONNECTION_ERROR.exit_code
 
 
-def test_wrap_cli_main_converts_exception_to_system_exit(
-    settings: Settings, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_wrap_cli_main_converts_exception_to_system_exit(settings: Settings, caplog: pytest.LogCaptureFixture) -> None:
     """Unhandled exceptions are converted to :class:`SystemExit` with logging."""
 
     configure_logging(settings, force_json=False, force_level="INFO")
@@ -128,7 +122,7 @@ def test_wrap_cli_main_converts_exception_to_system_exit(
     assert excinfo.value.code == ErrorCode.UNKNOWN_ERROR.exit_code
     assert len(capture_handler) == 1
     record = capture_handler[0]
-    assert getattr(record, "code") == ErrorCode.UNKNOWN_ERROR.code
+    assert record.code == ErrorCode.UNKNOWN_ERROR.code
     assert record.levelno == level_for(ErrorCode.UNKNOWN_ERROR.severity)
     assert record.exc_info is not None
 

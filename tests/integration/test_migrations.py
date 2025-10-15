@@ -28,11 +28,7 @@ def test_alembic_upgrade_head_subprocess(engine: Engine) -> None:
         text=True,
     )
     if completed.returncode != 0:
-        pytest.fail(
-            "alembic upgrade head failed\n"
-            f"stdout:\n{completed.stdout}\n"
-            f"stderr:\n{completed.stderr}"
-        )
+        pytest.fail(f"alembic upgrade head failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}")
 
     inspector = inspect(engine)
     assert inspector.has_table("alembic_version"), "alembic_version table missing"

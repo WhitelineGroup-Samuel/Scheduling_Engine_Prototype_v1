@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
+import builtins
 import importlib
+import json
 from typing import Any, cast
 
 import pytest
@@ -16,6 +17,7 @@ from app.errors.exceptions import (
     AppError,
     ConflictError,
     DBConnectionError,
+    DBMigrationError,
     DBOperationError,
     IOErrorApp,
     TimeoutError,
@@ -27,9 +29,7 @@ from app.errors.handlers import map_exception
 pytestmark = pytest.mark.unit
 
 
-def _assert_error(
-    mapped: AppError, expected_type: type[AppError], code: ErrorCode
-) -> None:
+def _assert_error(mapped: AppError, expected_type: type[AppError], code: ErrorCode) -> None:
     """Assert core attributes shared by :class:`AppError` instances."""
 
     assert isinstance(mapped, expected_type)
@@ -79,7 +79,7 @@ def test_map_psycopg_invalid_catalog_to_db_connection_error() -> None:
 
     pytest.importorskip("psycopg", reason="psycopg not installed")
     errors_module = importlib.import_module("psycopg.errors")
-    invalid_catalog = getattr(errors_module, "InvalidCatalogName")
+    invalid_catalog = errors_module.InvalidCatalogName
     err = invalid_catalog("database does not exist")
 
     mapped = map_exception(err)
@@ -103,9 +103,7 @@ def test_map_pydantic_validation_error_to_validation_error() -> None:
     assert mapped.context and mapped.context.get("type") == "ValidationError"
 
 
-@pytest.mark.parametrize(
-    "os_error", [FileNotFoundError("missing"), PermissionError("denied")]
-)
+@pytest.mark.parametrize("os_error", [FileNotFoundError("missing"), PermissionError("denied")])
 def test_map_os_errors_to_io_error(os_error: OSError) -> None:
     """Filesystem related errors are normalised to :class:`IOErrorApp`."""
 
@@ -118,7 +116,7 @@ def test_map_os_errors_to_io_error(os_error: OSError) -> None:
 def test_map_timeout_to_timeout_error() -> None:
     """Timeouts should map directly to the domain timeout error."""
 
-    mapped = map_exception(asyncio.TimeoutError())
+    mapped = map_exception(builtins.TimeoutError())
 
     _assert_error(mapped, TimeoutError, ErrorCode.TIMEOUT_ERROR)
     assert mapped.context == {"type": "TimeoutError"}
@@ -131,3 +129,61 @@ def test_map_unknown_to_unknown_error() -> None:
 
     _assert_error(mapped, UnknownError, ErrorCode.UNKNOWN_ERROR)
     assert mapped.context == {"type": "Exception"}
+
+
+def test_map_json_decode_error_to_validation_error() -> None:
+    """json.JSONDecodeError should map to domain ValidationError."""
+    try:
+        json.loads("{invalid")
+    except json.JSONDecodeError as err:
+        mapped = map_exception(err)
+    else:
+        pytest.fail("Expected JSONDecodeError")
+
+    _assert_error(mapped, ValidationError, ErrorCode.VALIDATION_ERROR)
+    assert mapped.context and mapped.context.get("type") == "JSONDecodeError"
+    assert {"pos", "lineno", "colno"} <= set(mapped.context.keys())
+
+
+def test_map_psycopg_operational_to_db_connection_error() -> None:
+    """psycopg OperationalError should map to DBConnectionError."""
+    psycopg = pytest.importorskip("psycopg", reason="psycopg not installed")
+    err = psycopg.OperationalError("connection lost")
+    mapped = map_exception(err)
+
+    _assert_error(mapped, DBConnectionError, ErrorCode.DB_CONNECTION_ERROR)
+    assert mapped.context == {"type": "OperationalError"}
+
+
+def test_map_psycopg_interface_to_db_connection_error() -> None:
+    """psycopg InterfaceError should map to DBConnectionError."""
+    psycopg = pytest.importorskip("psycopg", reason="psycopg not installed")
+    err = psycopg.InterfaceError("bad interface state")
+    mapped = map_exception(err)
+
+    _assert_error(mapped, DBConnectionError, ErrorCode.DB_CONNECTION_ERROR)
+    assert mapped.context == {"type": "InterfaceError"}
+
+
+def test_map_alembic_command_error_to_db_migration_error() -> None:
+    """Alembic CommandError should map to DBMigrationError."""
+    pytest.importorskip("alembic", reason="alembic not installed")
+    from alembic.util import CommandError
+
+    err = CommandError("migration command failed")
+    mapped = map_exception(err)
+
+    _assert_error(mapped, DBMigrationError, ErrorCode.DB_MIGRATION_ERROR)
+    assert mapped.context == {"type": "CommandError"}
+
+
+def test_map_alembic_revision_error_to_db_migration_error() -> None:
+    """Alembic RevisionError should map to DBMigrationError."""
+    pytest.importorskip("alembic", reason="alembic not installed")
+    from alembic.script.revision import RevisionError
+
+    err = RevisionError("bad revision")
+    mapped = map_exception(err)
+
+    _assert_error(mapped, DBMigrationError, ErrorCode.DB_MIGRATION_ERROR)
+    assert mapped.context == {"type": "RevisionError"}

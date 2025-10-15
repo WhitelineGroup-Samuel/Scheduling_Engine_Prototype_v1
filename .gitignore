@@ -51,6 +51,7 @@ migrations/versions/__pycache__/
 # Mac metadata
 Icon?
 
+# Ignore reports and private documentation
+reports/
+private_documentation/
 docs/CODEX_PROMPTS/
-
-project_files/

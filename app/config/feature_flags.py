@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping  # add this import
+from collections.abc import (
+    Callable,
+    Mapping,  # add this import
+)
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from .paths import REPO_ROOT
 
@@ -67,7 +70,7 @@ def _coerce_bool(value: Any) -> bool:
 
     if isinstance(value, bool):
         return value
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return bool(value)
     if isinstance(value, str):
         lowered = value.strip().lower()
@@ -132,9 +135,7 @@ def _load_file_flags() -> dict[str, bool]:
     if not isinstance(raw, dict):
         return {}
 
-    return {
-        _normalise_name(str(key)): _coerce_bool(value) for key, value in raw.items()
-    }
+    return {_normalise_name(str(key)): _coerce_bool(value) for key, value in raw.items()}
 
 
 def _load_env_flags() -> dict[str, bool]:
@@ -149,7 +150,7 @@ def _load_env_flags() -> dict[str, bool]:
     return env_flags
 
 
-def read_flags(settings: "Settings") -> dict[str, bool]:
+def read_flags(settings: Settings) -> dict[str, bool]:
     """Return the merged feature flags for the provided settings."""
 
     _ = settings.APP_ENV  # Access eagerly to assert presence and avoid lints.

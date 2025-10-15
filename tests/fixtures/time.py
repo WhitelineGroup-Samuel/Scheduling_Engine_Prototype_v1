@@ -3,24 +3,24 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Callable, ContextManager, Optional
+from datetime import UTC, datetime
+from typing import Any, ContextManager
 
 import pytest
 
 from app.utils import time as time_utils
 
 # Optional dependency: "freezegun" is only needed if installed in the dev env.
-_freezegun_freeze_time: Optional[Callable[[Any], ContextManager[Any]]]
+_freezegun_freeze_time: Callable[[Any], ContextManager[Any]] | None
 try:
     _fz_mod = importlib.import_module("freezegun")
     _freezegun_freeze_time = getattr(_fz_mod, "freeze_time", None)
 except Exception:
     _freezegun_freeze_time = None
 
-_FROZEN_INSTANT = datetime(2024, 1, 1, tzinfo=timezone.utc)
+_FROZEN_INSTANT = datetime(2024, 1, 1, tzinfo=UTC)
 
 
 @contextmanager
@@ -42,16 +42,22 @@ def fixed_utc(dt: datetime) -> Iterator[None]:
 
         return dt
 
-    setattr(time_utils, "now_utc", _patched_now_utc)
+    time_utils.now_utc = _patched_now_utc
     try:
         yield
     finally:
-        setattr(time_utils, "now_utc", original_now_utc)
+        time_utils.now_utc = original_now_utc
 
 
 @pytest.fixture(scope="function")
-def freeze_time() -> Iterator[datetime]:
-    """Freeze application time to ``2024-01-01T00:00:00Z`` for the duration of a test."""
+def freeze_time() -> Callable[[datetime], ContextManager[datetime]]:
+    """Return a factory that yields a context manager to freeze app time at a given aware UTC datetime."""
 
-    with fixed_utc(_FROZEN_INSTANT):
-        yield _FROZEN_INSTANT
+    @contextmanager
+    def _freezer(dt: datetime) -> Iterator[datetime]:
+        if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+            raise ValueError("Frozen datetime must be timezone-aware (UTC).")
+        with fixed_utc(dt):
+            yield dt
+
+    return _freezer

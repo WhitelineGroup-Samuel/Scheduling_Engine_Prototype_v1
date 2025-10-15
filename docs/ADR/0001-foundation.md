@@ -7,7 +7,7 @@
 - **Packaging stance**: App-first, package-ready.
 - **Runtime**: Python **3.12**, PostgreSQL **16**.
 - **Core libs**: SQLAlchemy 2.x, Alembic, Pydantic v2, Typer, python-dotenv.
-- **Driver**: psycopg2-binary (dev).
+- **Driver**: psycopg (v3) with binary extras (dev).
 - **Logging**: stdlib dictConfig; console + rotating file; optional JSON; `trace_id` via `contextvars`.
 - **Quality**: ruff + black, mypy (strict), pytest(+cov), pre-commit; sqlfluff optional.
 - **DB policy**: UTC in DB; Alembic for all DDL; **manual DB creation**.

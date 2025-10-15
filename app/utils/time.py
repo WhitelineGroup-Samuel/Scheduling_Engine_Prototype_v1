@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from time import monotonic
 from types import TracebackType
-from typing import Callable, Literal, TypeVar
+from typing import Literal, TypeVar
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def now_utc() -> datetime:
     """Return the current UTC time as an aware :class:`datetime` instance."""
 
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def now_tz(tz_name: str) -> datetime:
@@ -49,8 +50,8 @@ def to_utc(dt: datetime) -> datetime:
     """
 
     if dt.tzinfo is None:
-        return dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def format_dt(dt: datetime) -> str:
@@ -84,6 +85,21 @@ def format_duration_ms(start: float, end: float) -> float:
     return round((end - start) * 1000.0, 3)
 
 
+def to_local(dt: datetime, *, tz: str) -> datetime:
+    # expects an aware dt (UTC or otherwise)
+    return dt.astimezone(ZoneInfo(tz))
+
+
+def parse_iso8601(s: str) -> datetime:
+    # accept '...Z' and yield an aware UTC datetime
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        raise ValueError("Naive datetime not allowed")
+    return dt.astimezone(UTC)
+
+
 @dataclass
 class Timer:
     """Measure elapsed time using :func:`time.monotonic` within a context block."""
@@ -91,7 +107,7 @@ class Timer:
     _start: float | None = None
     _end: float | None = None
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Timer:
         """Start timing and return ``self`` for use inside the ``with`` statement."""
 
         self._start = monotonic()
@@ -121,7 +137,7 @@ class Timer:
 T = TypeVar("T")
 
 
-def measure(func: Callable[[], T]) -> tuple[T, float]:
+def measure[T](func: Callable[[], T]) -> tuple[T, float]:
     """Execute ``func`` and return its result alongside the execution time in ms.
 
     Args:
@@ -145,4 +161,6 @@ __all__ = [
     "format_duration_ms",
     "Timer",
     "measure",
+    "to_local",
+    "parse_iso8601",
 ]

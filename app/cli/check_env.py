@@ -74,7 +74,7 @@ import json
 import logging
 import re
 import time
-from typing import Any, Dict, cast
+from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import typer
@@ -142,7 +142,7 @@ def _validate_timezone(timezone: str) -> list[str]:
 def _format_latency(value: Any) -> str:
     """Render a latency value for human-readable output."""
 
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         return f"{value:.2f}ms"
     return "n/a"
 
@@ -156,10 +156,11 @@ def check_env_command(
         help="Treat warnings (timezone issues, missing hints) as errors.",
         is_flag=True,
     ),
-    json_output: bool | None = typer.Option(
-        None,
-        "--json/--no-json",
+    json_output: bool = typer.Option(
+        False,
+        "--json",
         help="Emit JSON summary instead of human-friendly text.",
+        is_flag=True,
     ),
     verbose: bool = typer.Option(
         False,
@@ -190,7 +191,7 @@ def check_env_command(
     logger = logging.getLogger("app.cli.check_env")
 
     default_json = bool(ctxd.get("default_json", False))
-    emit_json = json_output if json_output is not None else default_json
+    emit_json = json_output or default_json
 
     with with_trace_id(new_trace_id()):
         start = time.monotonic()
@@ -243,14 +244,8 @@ def check_env_command(
         )
 
         if emit_json:
-            payload: Dict[str, Any] = dict(summary)
+            payload: dict[str, Any] = dict(summary)
             typer.echo(json.dumps(payload, separators=(",", ":")))
         else:
             latency = _format_latency(summary["ping"]["duration_ms"])
-            typer.echo(
-                (
-                    f"Environment {summary['env']} | "
-                    f"Database={summary['db']['name']} | "
-                    f"Latency={latency}"
-                )
-            )
+            typer.echo(f"Environment {summary['env']} | Database={summary['db']['name']} | Latency={latency}")

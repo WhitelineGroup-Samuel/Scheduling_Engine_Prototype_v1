@@ -36,5 +36,67 @@
   // Terminal
   "terminal.integrated.env.osx": {
     "PYTHONWARNINGS": "default"
-  }
+  },
+  "terminal.integrated.profiles.osx": {
+    "Whiteline: DB Wizard (venv)": {
+      "path": "/bin/zsh",
+      "overrideCommandLine": true,
+      "args": [
+        "-lic",
+        "cd '${workspaceFolder}'; . .venv/bin/activate; python scripts/wizards/db_wizard.py; exec zsh -l"
+      ],
+      "icon": "server-environment"
+    },
+    "Whiteline: Migrations Wizard (venv)": {
+      "path": "/bin/zsh",
+      "overrideCommandLine": true,
+      "args": [
+        "-lic",
+        "cd '${workspaceFolder}'; . .venv/bin/activate; python scripts/wizards/migration_wizard.py; exec zsh -l"
+      ],
+      "icon": "organization"
+    },
+    "Whiteline: QA/Tests Wizard (venv)": {
+      "path": "/bin/zsh",
+      "overrideCommandLine": true,
+      "args": [
+        "-lic",
+        "cd '${workspaceFolder}'; . .venv/bin/activate; python scripts/wizards/test_wizard.py; exec zsh -l"
+      ],
+      "icon": "beaker"
+    }
+  },
+
+  // All multi-commands in ONE array
+  "multiCommand.commands": [
+    {
+      "command": "multiCommand.dbBeginNewWindow",
+      "sequence": [
+        { "command": "workbench.action.terminal.newWithProfile",
+          "args": { "profileName": "Whiteline: DB Wizard (venv)" }
+        },
+        "workbench.action.terminal.moveIntoNewWindow"
+      ]
+    },
+    {
+      "command": "multiCommand.migrationsWizardNewWindow",
+      "sequence": [
+        {
+          "command": "workbench.action.terminal.newWithProfile",
+          "args": { "profileName": "Whiteline: Migrations Wizard (venv)" }
+        },
+        "workbench.action.terminal.moveIntoNewWindow"
+      ]
+    },
+    {
+      "command": "multiCommand.qaTestsWizardNewWindow",
+      "sequence": [
+        {
+          "command": "workbench.action.terminal.newWithProfile",
+          "args": { "profileName": "Whiteline: QA/Tests Wizard (venv)" }
+        },
+        "workbench.action.terminal.moveIntoNewWindow"
+      ]
+    }
+  ]
 }

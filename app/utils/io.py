@@ -15,9 +15,7 @@ class _YamlProtocol(Protocol):  # pragma: no cover - typing helper
         """Deserialize YAML from ``stream``."""
         ...
 
-    def safe_dump(
-        self, data: Any, *, default_flow_style: bool = ...
-    ) -> str:  # pragma: no cover - signature stub
+    def safe_dump(self, data: Any, *, default_flow_style: bool = ...) -> str:  # pragma: no cover - signature stub
         """Serialize ``data`` to a YAML string."""
         ...
 
