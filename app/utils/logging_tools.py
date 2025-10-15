@@ -5,11 +5,10 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import secrets
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
-TRACE_ID_VAR: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "trace_id", default=None
-)
+TRACE_ID_VAR: contextvars.ContextVar[str | None] = contextvars.ContextVar("trace_id", default=None)
 """Context variable storing the current trace identifier."""
 
 

@@ -40,11 +40,12 @@ _models_imported: bool = False
 
 def import_all_models() -> None:
     """Import all ORM model modules so ``Base.metadata`` is populated."""
-
     global _models_imported
     if _models_imported:
         return
 
-    importlib.import_module("app.models.core")
+    # This assumes app/models/__init__.py imports each subpackage’s models,
+    # which you already created throughout the project.
+    importlib.import_module("app.models")
 
     _models_imported = True

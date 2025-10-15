@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Optional
 
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, SessionTransaction, sessionmaker
@@ -24,7 +23,7 @@ __all__ = [
     "begin_nested_for_tests",
 ]
 
-SessionLocal: Optional[sessionmaker[Session]] = None
+SessionLocal: sessionmaker[Session] | None = None
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
@@ -42,15 +41,13 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
         (no autoflush, objects remain usable post-commit).
     """
 
-    factory = sessionmaker[Session](
-        bind=engine, expire_on_commit=False, autoflush=False
-    )
+    factory = sessionmaker[Session](bind=engine, expire_on_commit=False, autoflush=False)
     return factory
 
 
 @contextmanager
 def get_session(
-    session_factory: Optional[sessionmaker[Session]] = None,
+    session_factory: sessionmaker[Session] | None = None,
 ) -> Iterator[Session]:
     """Yield a session scoped to the context, committing or rolling back.
 

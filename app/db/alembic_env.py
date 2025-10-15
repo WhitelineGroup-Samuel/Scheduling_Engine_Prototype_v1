@@ -54,6 +54,4 @@ def run_migrations_online() -> None:
 def run_migrations_offline() -> None:
     """Offline migrations are not supported for this project."""
 
-    raise NotImplementedError(
-        "Offline migrations are not supported; use online mode only."
-    )
+    raise NotImplementedError("Offline migrations are not supported; use online mode only.")

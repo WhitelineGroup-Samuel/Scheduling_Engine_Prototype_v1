@@ -108,13 +108,12 @@ import os
 import signal
 import time
 from types import FrameType
-from typing import Optional
 
 _PROCESS_START_TIME: float = time.monotonic()
 _PID: int = os.getpid()
 
 
-def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments for the runtime entrypoint."""
 
     parser = argparse.ArgumentParser(
@@ -185,7 +184,7 @@ def _register_signal_handlers(logger: logging.Logger) -> None:
     signal.signal(signal.SIGTERM, _signal_handler)
 
 
-def main(argv: Optional[list[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Execute the scheduling engine runtime bootstrap sequence."""
 
     args = parse_args(argv)
@@ -214,10 +213,7 @@ def main(argv: Optional[list[str]] = None) -> None:
 
     with with_trace_id(new_trace_id()):
         if not args.no_banner and not (settings.LOG_JSON or args.json_logs):
-            banner = (
-                f"{settings.APP_NAME} v{settings.APP_VERSION} | env={settings.APP_ENV} "
-                f"| pid={_PID} | tz={settings.TIMEZONE}"
-            )
+            banner = f"{settings.APP_NAME} v{settings.APP_VERSION} | env={settings.APP_ENV} | pid={_PID} | tz={settings.TIMEZONE}"
             print(banner)
 
         logger.info(

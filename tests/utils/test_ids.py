@@ -10,9 +10,7 @@ from app.utils.ids import new_uuid_str
 
 pytestmark = pytest.mark.unit
 
-_UUID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-)
+_UUID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 
 
 def test_new_uuid_str_format() -> None:

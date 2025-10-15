@@ -67,6 +67,11 @@ from app.config.settings import get_settings
 from app.errors.handlers import wrap_cli_main
 from app.utils.logging_tools import new_trace_id, with_trace_id
 
+ARG_PATH = typer.Argument(
+    None,
+    help="Directory or file glob to lint (default: .sql).",
+)
+
 __all__ = ["lint_sql_command"]
 
 
@@ -120,10 +125,7 @@ def _normalise_records(records: Any) -> list[dict[str, Any]]:
 @wrap_cli_main
 def lint_sql_command(
     ctx: typer.Context,
-    path: Path | None = typer.Argument(
-        None,
-        help="Directory or file glob to lint (default: ./sql).",
-    ),
+    path: Path | None = ARG_PATH,
     rules: str | None = typer.Option(
         None,
         "--rules",
@@ -174,9 +176,7 @@ def lint_sql_command(
         typer.echo("sqlfluff is not installed; skipping lint.")
         return
 
-    rule_list = (
-        [rule.strip() for rule in rules.split(",") if rule.strip()] if rules else None
-    )
+    rule_list = [rule.strip() for rule in rules.split(",") if rule.strip()] if rules else None
     linter_kwargs: dict[str, Any] = {}
     if rule_list:
         linter_kwargs["rule_whitelist"] = tuple(rule_list)
@@ -209,9 +209,7 @@ def lint_sql_command(
         for filepath, count in per_file:
             typer.echo(f"{filepath}: {count} violation(s)")
 
-        typer.echo(
-            f"Total files scanned: {files_scanned} | Total violations: {total_violations}"
-        )
+        typer.echo(f"Total files scanned: {files_scanned} | Total violations: {total_violations}")
 
         if total_violations:
             log_method = logger.error if rule_list else logger.warning

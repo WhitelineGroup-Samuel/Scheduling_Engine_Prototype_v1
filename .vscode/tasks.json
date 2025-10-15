@@ -50,77 +50,25 @@
       "command": ". .venv/bin/activate && pre-commit run --all-files",
       "problemMatcher": []
     },
-    // ---- DB / CLI tasks -----------------------------------------------------
     {
-      "label": "db: check-env",
+      "label": "DB: Begin",
       "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py check-env -v",
-      "problemMatcher": []
-    },
-    {
-      "label": "db: init-db (upgrade head)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py init-db",
-      "problemMatcher": []
-    },
-    {
-      "label": "db: init-db (dry-run)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py init-db --dry-run -v",
-      "problemMatcher": []
-    },
-    {
-      "label": "db: seed-data (dry-run)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py seed-data",
-      "problemMatcher": []
-    },
-    {
-      "label": "db: seed-data (apply)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env python manage.py seed-data --apply",
-      "problemMatcher": []
-    },
-    // ---- Alembic helpers (inspect/history only) ----------------------------
-    {
-      "label": "alembic: current",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic current",
-      "problemMatcher": []
-    },
-    {
-      "label": "alembic: heads",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic heads",
-      "problemMatcher": []
-    },
-    {
-      "label": "alembic: history",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic history --verbose",
-      "problemMatcher": []
-    },
-    {
-      "label": "alembic: revision (autogenerate)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && APP_ENV=dev ENV_FILE=.env alembic revision --autogenerate -m \"auto\"",
-      "problemMatcher": []
-    },
-    // ---- Meta tasks ---------------------------------------------------------
-    {
-      "label": "all: quick check (lint+type+test)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && ruff check app tests && mypy app && APP_ENV=test ENV_FILE=.env.test pytest -q -ra",
-      "group": {
-        "kind": "build",
-        "isDefault": true
+      "command": ". .venv/bin/activate && make db-begin",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "shell": {
+          "executable": "/bin/bash",
+          "args": [
+            "-lc"
+          ]
+        }
       },
-      "problemMatcher": []
-    },
-    {
-      "label": "all: full (fmt+lint+type+test+hooks)",
-      "type": "shell",
-      "command": ". .venv/bin/activate && black app tests && ruff check app tests && mypy app && APP_ENV=test ENV_FILE=.env.test pytest -q -ra && pre-commit run --all-files",
+      "presentation": {
+        "reveal": "always",
+        "panel": "new",
+        "focus": true,
+        "clear": true
+      },
       "problemMatcher": []
     }
   ]

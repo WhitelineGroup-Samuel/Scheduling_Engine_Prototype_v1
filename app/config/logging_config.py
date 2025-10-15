@@ -15,7 +15,7 @@ import json
 import logging
 import logging.config
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import ModuleType
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
@@ -72,7 +72,7 @@ def _redact_text(value: str) -> str:
 class StaticFieldsFilter(logging.Filter):
     """Inject static fields derived from application settings."""
 
-    def __init__(self, settings: "Settings") -> None:
+    def __init__(self, settings: Settings) -> None:
         super().__init__()
         self._env = settings.APP_ENV
         self._app = settings.APP_NAME or "scheduling-engine"
@@ -131,7 +131,7 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         message = getattr(record, "redacted_message", record.getMessage())
-        timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat()
+        timestamp = datetime.fromtimestamp(record.created, tz=UTC).isoformat()
         if timestamp.endswith("+00:00"):
             timestamp = timestamp.replace("+00:00", "Z")
 
@@ -181,7 +181,7 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(
-    settings: "Settings",
+    settings: Settings,
     *,
     force_json: bool | None = None,
     force_level: str | None = None,

@@ -78,9 +78,13 @@ Safety
 
 from __future__ import annotations
 
+import importlib
+import json
 import logging
+from collections.abc import Callable, Mapping
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar
+from types import ModuleType
+from typing import TYPE_CHECKING, Any
 
 from .exceptions import (
     AppError,
@@ -93,9 +97,52 @@ from .exceptions import (
     UnknownError,
     ValidationError,
 )
-from .exceptions import (
-    TimeoutError as DomainTimeoutError,
-)
+from .exceptions import TimeoutError as DomainTimeoutError
+
+# --- Pydantic (v2) ---
+PydanticCoreValidationError: type[BaseException] | None = None
+try:
+    from pydantic_core import ValidationError as _PydanticCoreValidationError
+
+    PydanticCoreValidationError = _PydanticCoreValidationError
+except Exception:
+    pass
+
+# --- Pydantic (v1) ---
+PydanticV1ValidationError: type[BaseException] | None = None
+try:
+    from pydantic import ValidationError as _PydanticV1ValidationError
+
+    PydanticV1ValidationError = _PydanticV1ValidationError
+except Exception:
+    pass
+
+# --- psycopg module (v3) ---
+psycopg: ModuleType | None = None
+try:
+    import psycopg as _psycopg
+
+    psycopg = _psycopg
+except Exception:
+    pass
+
+# --- Alembic exceptions ---
+AlembicCommandError: type[BaseException] | None = None
+try:
+    from alembic.util import CommandError as _AlembicCommandError
+
+    AlembicCommandError = _AlembicCommandError
+except Exception:
+    pass
+
+AlembicRevisionError: type[BaseException] | None = None
+try:
+    from alembic.script.revision import RevisionError as _AlembicRevisionError
+
+    AlembicRevisionError = _AlembicRevisionError
+except Exception:
+    pass
+
 
 if TYPE_CHECKING:  # pragma: no cover - optional dependency guard
     from sqlalchemy.exc import IntegrityError as SAIntegrityError
@@ -111,7 +158,6 @@ else:  # pragma: no cover - guard optional dependency import failures
 
 
 LoggerLike = logging.Logger
-_T = TypeVar("_T")
 
 
 def level_for(severity: str) -> int:
@@ -135,7 +181,7 @@ def exc_info_for(app_err: AppError) -> bool:
 def map_exception(err: BaseException) -> AppError:
     """Translate any exception into a structured :class:`AppError`."""
 
-    if isinstance(err, (SystemExit, KeyboardInterrupt)):
+    if isinstance(err, SystemExit | KeyboardInterrupt):
         raise err
 
     if isinstance(err, AppError):
@@ -150,6 +196,44 @@ def map_exception(err: BaseException) -> AppError:
     if isinstance(err, SAIntegrityError):
         return ConflictError(context={"type": err.__class__.__name__})
 
+    # --- psycopg v3 mapping: InvalidCatalogName => DB connection error ---
+    try:  # optional dependency; avoid hard import if missing
+        pg_errors = importlib.import_module("psycopg.errors")
+        InvalidCatalogName = getattr(pg_errors, "InvalidCatalogName", None)
+    except Exception:  # psycopg not installed or import error
+        InvalidCatalogName = None
+
+    if InvalidCatalogName is not None and isinstance(err, InvalidCatalogName):
+        return DBConnectionError(context={"type": err.__class__.__name__})
+
+    # --- Pydantic validation (v2 and v1) ---
+    if PydanticCoreValidationError is not None and isinstance(err, PydanticCoreValidationError):
+        return ValidationError(message="Invalid data.", context={"type": err.__class__.__name__})
+    if PydanticV1ValidationError is not None and isinstance(err, PydanticV1ValidationError):
+        return ValidationError(message="Invalid data.", context={"type": err.__class__.__name__})
+
+    # --- JSON decode errors (JSONB payloads, config files, etc.) ---
+    if isinstance(err, json.JSONDecodeError):
+        return ValidationError(
+            message="Invalid JSON payload.",
+            context={
+                "type": err.__class__.__name__,
+                "pos": err.pos,
+                "lineno": err.lineno,
+                "colno": err.colno,
+            },
+        )
+
+    # --- psycopg v3 operational classes (transport/auth/socket) ---
+    if psycopg is not None and isinstance(err, psycopg.OperationalError | psycopg.InterfaceError):
+        return DBConnectionError(context={"type": err.__class__.__name__})
+
+    # --- Alembic migration errors ---
+    if (AlembicCommandError is not None and isinstance(err, AlembicCommandError)) or (
+        AlembicRevisionError is not None and isinstance(err, AlembicRevisionError)
+    ):
+        return DBMigrationError(context={"type": err.__class__.__name__})
+
     if isinstance(err, ValueError):
         message = str(err) or None
         context = {"type": err.__class__.__name__}
@@ -159,15 +243,11 @@ def map_exception(err: BaseException) -> AppError:
 
     if isinstance(err, TimeoutError):
         message = str(err) or None
-        return DomainTimeoutError(
-            message=message, context={"type": err.__class__.__name__}
-        )
+        return DomainTimeoutError(message=message, context={"type": err.__class__.__name__})
 
     if isinstance(err, ConnectionError):
         message = str(err) or None
-        return ExternalServiceError(
-            message=message, context={"type": err.__class__.__name__}
-        )
+        return ExternalServiceError(message=message, context={"type": err.__class__.__name__})
 
     if isinstance(err, OSError):
         message = str(err) or None
@@ -175,9 +255,7 @@ def map_exception(err: BaseException) -> AppError:
 
     if isinstance(err, RuntimeError):
         message = str(err) or None
-        return DBMigrationError(
-            message=message, context={"type": err.__class__.__name__}
-        )
+        return DBMigrationError(message=message, context={"type": err.__class__.__name__})
 
     return UnknownError(
         message=str(err),
@@ -188,7 +266,7 @@ def map_exception(err: BaseException) -> AppError:
 def handle_cli_error(err: BaseException, logger: LoggerLike) -> int:
     """Normalize, log, and return the exit code for a CLI error."""
 
-    if isinstance(err, (SystemExit, KeyboardInterrupt)):
+    if isinstance(err, SystemExit | KeyboardInterrupt):
         raise err
 
     app_err = map_exception(err)
@@ -206,13 +284,13 @@ def handle_cli_error(err: BaseException, logger: LoggerLike) -> int:
     return app_err.exit_code
 
 
-def wrap_cli_main(func: Callable[..., _T]) -> Callable[..., _T]:
+def wrap_cli_main[T](func: Callable[..., T]) -> Callable[..., T]:
     """Decorator that standardizes CLI error handling for entrypoints."""
 
     logger = logging.getLogger(func.__module__)
 
     @wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> _T:
+    def wrapper(*args: Any, **kwargs: Any) -> T:
         try:
             return func(*args, **kwargs)
         except (SystemExit, KeyboardInterrupt):

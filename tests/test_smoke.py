@@ -53,18 +53,16 @@ def test_timezone_available() -> None:
     assert aware_now.tzinfo.utcoffset(aware_now) is not None
 
 
-def test_logging_config_builds_and_emits(
-    caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_logging_config_builds_and_emits(caplog: pytest.LogCaptureFixture, capsys: pytest.CaptureFixture[str]) -> None:
     """Logging configuration should emit human and JSON formats with trace IDs."""
 
     base_settings = get_settings()
     human_settings = base_settings.model_copy(update={"LOG_JSON": False}, deep=True)
     configure_logging(human_settings, force_json=False, force_level="INFO")
-    caplog.clear()
+    # Human-mode log should go to stdout/stderr; our config may reset handlers,
+    # so validate via capsys rather than caplog (which relies on pytest’s handler).
     human_logger = logging.getLogger("app.smoke.logging")
-    human_logger.propagate = False
-    caplog.set_level(logging.ERROR, logger=human_logger.name)
+    human_logger.propagate = True
     human_logger.error(
         "human-mode log",
         extra={
@@ -73,16 +71,17 @@ def test_logging_config_builds_and_emits(
             "severity": ErrorCode.UNKNOWN_ERROR.severity,
         },
     )
-    assert caplog.records, "Expected at least one human log record"
-    human_record = caplog.records[-1]
-    assert getattr(human_record, "trace_id")
-    caplog.clear()
-    capsys.readouterr()
+    sys.stdout.flush()
+    captured_human = capsys.readouterr()
+    human_lines = [ln for ln in (captured_human.out + captured_human.err).splitlines() if ln.strip()]
+    assert any("human-mode log" in ln for ln in human_lines), "Expected human log text"
+    # our human formatter includes a trace marker like 'trace=<id>'; assert it’s present
+    assert any("trace=" in ln for ln in human_lines), "Expected trace id in human log line"
 
     json_settings = base_settings.model_copy(update={"LOG_JSON": True}, deep=True)
     configure_logging(json_settings, force_json=True, force_level="INFO")
     json_logger = logging.getLogger("app.smoke.logging.json")
-    json_logger.propagate = False
+    json_logger.propagate = True
     json_logger.error(
         "json-mode log",
         extra={

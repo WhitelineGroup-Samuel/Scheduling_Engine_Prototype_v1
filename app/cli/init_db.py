@@ -65,7 +65,8 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Iterable, Sequence, cast
+from collections.abc import Iterable, Sequence
+from typing import Any, cast
 
 import typer
 from alembic import command
@@ -185,13 +186,7 @@ def init_db_command(
                         "ping_ms": ping_result.get("duration_ms"),
                     },
                 )
-                typer.echo(
-                    (
-                        f"Current heads: {db_heads or ['<empty>']} | "
-                        f"Script heads: {script_heads or ['<empty>']} | "
-                        f"Target: {target_revision}"
-                    )
-                )
+                typer.echo(f"Current heads: {db_heads or ['<empty>']} | Script heads: {script_heads or ['<empty>']} | Target: {target_revision}")
                 return
 
             before_heads = _current_heads(engine)
@@ -206,9 +201,7 @@ def init_db_command(
         finally:
             post_engine.dispose()
 
-        applied: Sequence[str] = [
-            head for head in after_heads if head not in before_heads
-        ]
+        applied: Sequence[str] = [head for head in after_heads if head not in before_heads]
         duration_ms = (time.monotonic() - start) * 1000.0
         logger.info(
             "init-db complete",

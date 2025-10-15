@@ -29,8 +29,10 @@ dependencies = [
   "alembic>=1.13,<2.0",
   "pydantic>=2.7,<3.0",
   "python-dotenv>=1.0,<2.0",
+  "click>8.1.7,<8.2",
   "typer>=0.12,<0.13",
-  "psycopg2-binary>=2.9,<3.0",
+  "psycopg[binary]>=3.1",
+  "psycopg-pool>=3.2",
   # Logging (JSON formatter helper; optional but useful for Step 13)
   "python-json-logger>=2.0,<3.0",
 ]
@@ -66,15 +68,41 @@ packages = { find = { where = [
 include-package-data = false
 
 [tool.black]
-line-length = 88
+line-length = 150
 target-version = ["py312"]
 
 [tool.ruff]
 target-version = "py312"
-line-length = 88
+line-length = 150
 src = ["app", "tests"]
-extend-select = ["I"]     # isort via Ruff
-ignore = ["D203", "D213"] # example docstring rule prefs; adjust later
+extend-exclude = [
+  ".venv",
+  ".git",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".pytest_cache",
+  "dist",
+  "build",
+  "migrations",
+  "scripts",
+  "sql",
+  "project_files",
+  "docs",
+  "logs",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+extend-select = ["E", "F", "I", "UP", "B", "C4", "ICN", "SIM", "ARG"]     # isort via Ruff
+ignore = ["D203"] # example docstring rule prefs; adjust later
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ARG001", "ARG002", "UP022", "B017", "UP035", "E501"]
+"migrations/**" = ["E501", "SIM103", "SIM105", "ARG001", "ARG002"]
+"scripts/**" = ["E501", "SIM105", "SIM108", "C401", "E702", "ARG001", "ARG002", "UP022"]
+"app/models/**" = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

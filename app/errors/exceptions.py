@@ -51,7 +51,7 @@ Notes
 
 from __future__ import annotations
 
-from typing import Mapping, MutableMapping, Optional
+from collections.abc import Mapping, MutableMapping
 
 from .codes import ErrorCode, SeverityLiteral
 
@@ -96,7 +96,7 @@ class ConfigError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.CONFIG_ERROR
@@ -116,7 +116,7 @@ class DBConnectionError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.DB_CONNECTION_ERROR
@@ -136,7 +136,7 @@ class DBMigrationError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.DB_MIGRATION_ERROR
@@ -156,7 +156,7 @@ class DBOperationError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.DB_OPERATION_ERROR
@@ -176,7 +176,7 @@ class ValidationError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.VALIDATION_ERROR
@@ -196,7 +196,7 @@ class NotFoundError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.NOT_FOUND_ERROR
@@ -216,7 +216,7 @@ class ConflictError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.CONFLICT_ERROR
@@ -236,7 +236,7 @@ class ExternalServiceError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.EXTERNAL_SERVICE_ERROR
@@ -256,7 +256,7 @@ class TimeoutError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.TIMEOUT_ERROR
@@ -276,7 +276,7 @@ class IOErrorApp(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.IO_ERROR
@@ -296,7 +296,7 @@ class UnknownError(AppError):
 
     def __init__(
         self,
-        message: Optional[str] = None,
+        message: str | None = None,
         context: Mapping[str, object] | None = None,
     ) -> None:
         code = ErrorCode.UNKNOWN_ERROR

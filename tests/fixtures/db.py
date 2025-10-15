@@ -65,9 +65,7 @@ def db_connection(engine: Engine) -> Iterator[Connection]:
 def session_factory(engine: Engine) -> sessionmaker[Session]:
     """Return a configured session factory bound to the shared engine."""
 
-    factory = sessionmaker[Session](
-        bind=engine, expire_on_commit=False, autoflush=False
-    )
+    factory = sessionmaker[Session](bind=engine, expire_on_commit=False, autoflush=False)
     return factory
 
 
@@ -87,14 +85,8 @@ def db_session(
     def _restart_savepoint(sess: Session, transaction_: SessionTransaction) -> None:
         """Re-establish nested SAVEPOINTs after commits within tests."""
 
-        parent = getattr(transaction_, "parent", None) or getattr(
-            transaction_, "_parent", None
-        )
-        if (
-            transaction_.nested
-            and parent is not None
-            and not getattr(parent, "nested", False)
-        ):
+        parent = getattr(transaction_, "parent", None) or getattr(transaction_, "_parent", None)
+        if transaction_.nested and parent is not None and not getattr(parent, "nested", False):
             sess.begin_nested()
 
     event.listen(session, "after_transaction_end", _restart_savepoint)
@@ -121,7 +113,7 @@ def migrated_db(engine: Engine) -> Iterator[None]:
     from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[2]
-    command = [sys.executable, "-m", "alembic", "upgrade", "head"]
+    command = [sys.executable, "-m", "alembic", "-x", "env=test", "upgrade", "head"]
     completed = subprocess.run(
         command,
         cwd=repo_root,
@@ -130,12 +122,8 @@ def migrated_db(engine: Engine) -> Iterator[None]:
         text=True,
     )
     if completed.returncode != 0:
-        raise RuntimeError(
-            "alembic upgrade head failed\n"
-            f"stdout:\n{completed.stdout}\n"
-            f"stderr:\n{completed.stderr}"
-        )
+        raise RuntimeError(f"alembic upgrade head failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}")
     try:
         yield
     finally:
-        engine.dispose()
+        pass

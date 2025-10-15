@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import ModuleType
-from typing import Callable, ContextManager, Iterator
+from typing import ContextManager
 
 import pytest
 
@@ -24,7 +25,7 @@ except ModuleNotFoundError:
     _time_fixture_module = None
 
 if _time_fixture_module and hasattr(_time_fixture_module, "freeze_time"):
-    freeze_time = getattr(_time_fixture_module, "freeze_time")
+    freeze_time = _time_fixture_module.freeze_time
 else:
 
     @pytest.fixture(name="freeze_time")
@@ -49,12 +50,12 @@ def test_now_utc_is_aware() -> None:
 
 @pytest.mark.skipif(TO_LOCAL is None, reason="to_local helper not implemented")
 def test_to_local_converts_correctly(
-    freeze_time: Callable[[datetime], ContextManager[datetime]]
+    freeze_time: Callable[[datetime], ContextManager[datetime]],
 ) -> None:
     """Converting UTC timestamps to the Melbourne timezone preserves awareness."""
 
     assert TO_LOCAL is not None
-    fixed_utc = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    fixed_utc = datetime(2024, 1, 1, tzinfo=UTC)
     with freeze_time(fixed_utc):
         local = TO_LOCAL(fixed_utc, tz="Australia/Melbourne")
     assert local.tzinfo is not None
@@ -62,9 +63,7 @@ def test_to_local_converts_correctly(
     assert offset in {timedelta(hours=10), timedelta(hours=11)}
 
 
-@pytest.mark.skipif(
-    PARSE_ISO8601 is None, reason="parse_iso8601 helper not implemented"
-)
+@pytest.mark.skipif(PARSE_ISO8601 is None, reason="parse_iso8601 helper not implemented")
 def test_parse_iso8601_strict() -> None:
     """ISO8601 parsing should yield aware UTC datetimes and reject invalid strings."""
 

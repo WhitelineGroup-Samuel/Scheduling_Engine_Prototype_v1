@@ -56,7 +56,7 @@ def _build_connect_args(
     idle_in_tx_timeout_ms: int | None,
     connect_timeout_s: int | None,
 ) -> dict[str, Any]:
-    """Construct psycopg2 ``connect_args`` enforcing timeout safeguards."""
+    """Construct psycopg (v3) / SQLAlchemy ``connect_args`` with safe timeouts for every connection."""
     connect_args: dict[str, Any] = {
         "application_name": f"{settings.APP_NAME}:{role}",
     }
@@ -67,9 +67,7 @@ def _build_connect_args(
     if statement_timeout_ms is not None:
         option_parts.append(f"-c statement_timeout={statement_timeout_ms}")
     if idle_in_tx_timeout_ms is not None:
-        option_parts.append(
-            f"-c idle_in_transaction_session_timeout={idle_in_tx_timeout_ms}"
-        )
+        option_parts.append(f"-c idle_in_transaction_session_timeout={idle_in_tx_timeout_ms}")
     if option_parts:
         connect_args["options"] = " ".join(option_parts)
     return connect_args
@@ -109,11 +107,7 @@ def create_engine_from_settings(
     """
 
     effective_url = settings.effective_database_url
-    echo = (
-        echo_sql
-        if echo_sql is not None
-        else settings.APP_ENV == "dev" and settings.LOG_LEVEL == "DEBUG"
-    )
+    echo = echo_sql if echo_sql is not None else settings.APP_ENV == "dev" and settings.LOG_LEVEL == "DEBUG"
 
     engine = create_engine(
         effective_url,

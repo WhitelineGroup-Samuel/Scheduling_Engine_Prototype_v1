@@ -26,7 +26,7 @@ A production-grade **skeleton** for the Regular Rounds Scheduling Engine. This r
     APP_ENV=dev
     EXPORT_DIR=./exports
     LOG_LEVEL=INFO
-    DATABASE_URL=postgresql+psycopg2://user:pass@localhost:5432/scheduling_dev
+    DATABASE_URL=postgresql+psycopg://user:pass@localhost:5432/scheduling_dev
     TIMEZONE=Australia/Melbourne
     LOG_JSON=false
     ```

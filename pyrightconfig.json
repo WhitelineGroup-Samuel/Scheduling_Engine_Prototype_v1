@@ -1,0 +1,22 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "strict",
+  "reportMissingTypeStubs": false,
+  "reportUnknownVariableType": true,
+  "reportUnknownMemberType": true,
+  "reportUnknownArgumentType": true,
+  "reportAny": "error",
+  "exclude": [
+    ".venv",
+    ".pytest_cache",
+    "**/__pycache__"
+  ],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["."]
+    }
+  ]
+}

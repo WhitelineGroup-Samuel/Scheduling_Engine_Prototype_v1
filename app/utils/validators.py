@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any, Final
 from urllib.parse import SplitResult, urlsplit, urlunsplit
 
@@ -9,12 +10,19 @@ _DEFAULT_LOG_LEVELS: Final[set[str]] = {"DEBUG", "INFO", "WARNING", "ERROR", "CR
 _DEFAULT_ENVS: Final[set[str]] = {"dev", "test", "prod"}
 _TRUTHY_STRINGS: Final[set[str]] = {"1", "true", "t", "yes", "y", "on"}
 _FALSEY_STRINGS: Final[set[str]] = {"0", "false", "f", "no", "n", "off"}
+_NON_EMPTY = re.compile(r"\S")
+_EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_URL = re.compile(r"^https?://[^\s/:]+(?::\d+)?(?:/[^\s]*)?$", re.IGNORECASE)
 
 
 def validate_url(
     url: str,
     *,
-    schemes: tuple[str, ...] = ("postgresql", "postgresql+psycopg2"),
+    schemes: tuple[str, ...] = (
+        "postgresql",
+        "postgresql+psycopg",
+        "postgresql+psycopg2",
+    ),
 ) -> str:
     """Validate a database connection URL and normalize supported schemes.
 
@@ -30,19 +38,23 @@ def validate_url(
     """
 
     parsed = urlsplit(url)
-    allowed_schemes = {item.lower() for item in schemes}
-    scheme = parsed.scheme.lower()
-    if scheme not in allowed_schemes:
-        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+    # Normalize legacy driver tag *before* validation so old URLs still pass
+    scheme_in = parsed.scheme
+    scheme_lower = scheme_in.lower()
+    mapped_scheme = "postgresql+psycopg" if scheme_lower == "postgresql+psycopg2" else scheme_in
+
     if not parsed.netloc:
         raise ValueError("URL must include network location")
-    normalized_scheme = (
-        "postgresql+psycopg" if scheme == "postgresql+psycopg2" else parsed.scheme
-    )
-    if normalized_scheme == parsed.scheme:
-        return url
-    normalized = parsed._replace(scheme=normalized_scheme)
-    return urlunsplit(normalized)
+
+    allowed_schemes = {item.lower() for item in schemes}
+    if mapped_scheme.lower() not in allowed_schemes:
+        raise ValueError(f"Unsupported URL scheme: {scheme_in}")
+
+    # If normalization changed the scheme, rebuild the URL; otherwise return input
+    if mapped_scheme != scheme_in:
+        normalized = parsed._replace(scheme=mapped_scheme)
+        return urlunsplit(normalized)
+    return url
 
 
 def validate_log_level(value: str) -> str:
@@ -141,10 +153,25 @@ def redact_url_credentials(url: str) -> str:
     return urlunsplit(sanitized)
 
 
+def is_non_empty_str(value: Any) -> bool:
+    return isinstance(value, str) and bool(_NON_EMPTY.search(value))
+
+
+def is_valid_email(value: str) -> bool:
+    return bool(_EMAIL.match(value))
+
+
+def is_valid_url(value: str) -> bool:
+    return bool(_URL.match(value))
+
+
 __all__ = [
     "validate_url",
     "validate_log_level",
     "validate_env",
     "coerce_bool",
     "redact_url_credentials",
+    "is_non_empty_str",
+    "is_valid_email",
+    "is_valid_url",
 ]

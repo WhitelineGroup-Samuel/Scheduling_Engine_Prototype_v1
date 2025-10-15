@@ -1,0 +1,91 @@
+.
+├── pytest.ini
+└── tests
+    ├── __init__.py
+    ├── __pycache__
+    │   ├── __init__.cpython-312.pyc
+    │   ├── conftest.cpython-312-pytest-8.4.2.pyc
+    │   ├── test_cli_entrypoints.cpython-312-pytest-8.4.2.pyc
+    │   └── test_smoke.cpython-312-pytest-8.4.2.pyc
+    ├── conftest.py
+    ├── fixtures
+    │   ├── __pycache__
+    │   │   ├── calendar.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── db.cpython-312-pytest-8.4.2.pyc
+    │   │   └── time.cpython-312-pytest-8.4.2.pyc
+    │   ├── calendar.py
+    │   ├── db.py
+    │   └── time.py
+    ├── integration
+    │   ├── __pycache__
+    │   │   ├── test_db_connect.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── test_migrations.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── test_seed_data.cpython-312-pytest-8.4.2.pyc
+    │   │   └── test_seed_flow.cpython-312-pytest-8.4.2.pyc
+    │   ├── repositories
+    │   │   ├── system
+    │   │   │   ├── __pycache__
+    │   │   │   │   ├── test_competition_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   ├── test_organisation_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   ├── test_season_day_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   ├── test_season_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   ├── test_user_account_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   └── test_user_permission_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   ├── test_competition_repository.py
+    │   │   │   ├── test_organisation_repository.py
+    │   │   │   ├── test_season_day_repository.py
+    │   │   │   ├── test_season_repository.py
+    │   │   │   ├── test_user_account_repository.py
+    │   │   │   └── test_user_permission_repository.py
+    │   │   ├── taxonomy
+    │   │   │   ├── __pycache__
+    │   │   │   │   ├── test_age_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   ├── test_grade_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   └── test_team_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   ├── test_age_repository.py
+    │   │   │   ├── test_grade_repository.py
+    │   │   │   └── test_team_repository.py
+    │   │   ├── timeplan
+    │   │   │   ├── __pycache__
+    │   │   │   │   ├── test_round_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   ├── test_round_setting_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   │   └── test_time_slot_repository.cpython-312-pytest-8.4.2.pyc
+    │   │   │   ├── test_round_repository.py
+    │   │   │   ├── test_round_setting_repository.py
+    │   │   │   └── test_time_slot_repository.py
+    │   │   └── venues
+    │   │       ├── __pycache__
+    │   │       │   ├── test_court_repository.cpython-312-pytest-8.4.2.pyc
+    │   │       │   └── test_venue_repository.cpython-312-pytest-8.4.2.pyc
+    │   │       ├── test_court_repository.py
+    │   │       └── test_venue_repository.py
+    │   ├── test_db_connect.py
+    │   ├── test_migrations.py
+    │   ├── test_seed_data.py
+    │   └── test_seed_flow.py
+    ├── test_cli_entrypoints.py
+    ├── test_smoke.py
+    ├── unit
+    │   ├── __pycache__
+    │   │   ├── test_errors_mapping.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── test_handlers_cli.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── test_repositories_pagination.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── test_repositories_sorting.cpython-312-pytest-8.4.2.pyc
+    │   │   └── test_schemas_base_config.cpython-312-pytest-8.4.2.pyc
+    │   ├── test_errors_mapping.py
+    │   ├── test_handlers_cli.py
+    │   ├── test_repositories_pagination.py
+    │   ├── test_repositories_sorting.py
+    │   └── test_schemas_base_config.py
+    └── utils
+        ├── __pycache__
+        │   ├── test_ids.cpython-312-pytest-8.4.2.pyc
+        │   ├── test_slug_normalizer.cpython-312-pytest-8.4.2.pyc
+        │   ├── test_time.cpython-312-pytest-8.4.2.pyc
+        │   ├── test_time_helpers.cpython-312-pytest-8.4.2.pyc
+        │   └── test_validators.cpython-312-pytest-8.4.2.pyc
+        ├── test_ids.py
+        ├── test_slug_normalizer.py
+        ├── test_time.py
+        ├── test_time_helpers.py
+        └── test_validators.py

@@ -32,7 +32,12 @@ Responsibilities
          "app": {"name": str, "version": str, "env": str},
          "python": {"version": str, "impl": str, "platform": str},
          "tz": {"timezone": str, "valid": bool},
-         "db": {"ok": bool, "database": str | None, "server_version": str | None, "duration_ms": float | None},
+         "db": {
+            "ok": bool,
+            "database": str | None,
+            "server_version": str | None,
+            "duration_ms": float | None,
+         },
          "alembic": {"heads": list[str] | None}
        }
 4) Exit codes:
@@ -116,10 +121,11 @@ def _validate_timezone(timezone: str) -> bool:
 @wrap_cli_main
 def diag_command(
     ctx: typer.Context,
-    json_output: bool | None = typer.Option(
-        None,
-        "--json/--no-json",
+    json_output: bool = typer.Option(
+        False,
+        "--json",
         help="Emit JSON diagnostics payload instead of text.",
+        is_flag=True,
     ),
     verbose: bool = typer.Option(
         False,
@@ -149,7 +155,7 @@ def diag_command(
     logger = logging.getLogger("app.cli.diag")
 
     default_json = bool(ctxd.get("default_json", False))
-    emit_json = json_output if json_output is not None else default_json
+    emit_json = json_output or default_json
 
     with with_trace_id(new_trace_id()):
         start = time.monotonic()
@@ -218,26 +224,13 @@ def diag_command(
 
         db_section = summary["db"]
         db_line = (
-            f"DB: ok={db_section['ok']} "
-            f"name={db_section['database']} "
-            f"version={db_section['server_version']} "
-            f"duration_ms={db_section['duration_ms']}"
+            f"DB: ok={db_section['ok']} name={db_section['database']} version={db_section['server_version']} duration_ms={db_section['duration_ms']}"
         )
         heads_display = summary["alembic"]["heads"]
-        if heads_display:
-            heads_str = ", ".join(heads_display)
-        else:
-            heads_str = "<none>"
+        heads_str = ", ".join(heads_display) if heads_display else "<none>"
 
-        typer.echo(
-            f"App: {summary['app']['name']} v{summary['app']['version']} (env={summary['app']['env']})"
-        )
-        typer.echo(
-            "Python: "
-            f"{summary['python']['version']} ({summary['python']['impl']}) on {summary['python']['platform']}"
-        )
-        typer.echo(
-            f"Timezone: {summary['tz']['timezone']} valid={summary['tz']['valid']}"
-        )
+        typer.echo(f"App: {summary['app']['name']} v{summary['app']['version']} (env={summary['app']['env']})")
+        typer.echo(f"Python: {summary['python']['version']} ({summary['python']['impl']}) on {summary['python']['platform']}")
+        typer.echo(f"Timezone: {summary['tz']['timezone']} valid={summary['tz']['valid']}")
         typer.echo(db_line)
         typer.echo(f"Alembic heads: {heads_str}")
