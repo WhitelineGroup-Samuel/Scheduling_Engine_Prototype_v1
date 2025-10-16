@@ -21,11 +21,10 @@ from __future__ import annotations
 
 import shlex
 import subprocess
-from subprocess import CompletedProcess
 import sys
 from collections.abc import Iterable
 from pathlib import Path
-from typing import cast
+from subprocess import CompletedProcess
 
 
 def find_repo_root(start: Path) -> Path:

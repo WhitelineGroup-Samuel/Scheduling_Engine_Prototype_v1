@@ -30,12 +30,12 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Literal
-from collections.abc import Sequence, Iterator
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from contextlib import contextmanager
+from typing import Literal
 
 # ------------------------------------------------------------------------------
 # Repo root detection

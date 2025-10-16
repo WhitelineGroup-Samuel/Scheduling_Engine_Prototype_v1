@@ -1,5 +1,572 @@
 .
+├── AGENTS.md
+├── Makefile
+├── README.md
+├── alembic.ini
+├── app
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   └── __init__.cpython-312.pyc
+│   ├── cli
+│   │   ├── __init__.py
+│   │   ├── __main__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── __main__.cpython-312.pyc
+│   │   │   ├── check_env.cpython-312.pyc
+│   │   │   ├── diag.cpython-312.pyc
+│   │   │   ├── init_db.cpython-312.pyc
+│   │   │   ├── lint_sql.cpython-312.pyc
+│   │   │   ├── main.cpython-312.pyc
+│   │   │   └── seed_data.cpython-312.pyc
+│   │   ├── check_env.py
+│   │   ├── diag.py
+│   │   ├── init_db.py
+│   │   ├── lint_sql.py
+│   │   ├── main.py
+│   │   └── seed_data.py
+│   ├── config
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── constants.cpython-312.pyc
+│   │   │   ├── logging_config.cpython-312.pyc
+│   │   │   ├── paths.cpython-312.pyc
+│   │   │   └── settings.cpython-312.pyc
+│   │   ├── constants.py
+│   │   ├── env.py
+│   │   ├── feature_flags.py
+│   │   ├── logging_config.py
+│   │   ├── paths.py
+│   │   └── settings.py
+│   ├── db
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── alembic_env.cpython-312.pyc
+│   │   │   ├── base.cpython-312.pyc
+│   │   │   ├── engine.cpython-312.pyc
+│   │   │   ├── healthcheck.cpython-312.pyc
+│   │   │   ├── seed.cpython-312.pyc
+│   │   │   ├── seed_helpers.cpython-312.pyc
+│   │   │   └── session.cpython-312.pyc
+│   │   ├── alembic_env.py
+│   │   ├── base.py
+│   │   ├── engine.py
+│   │   ├── healthcheck.py
+│   │   ├── seed.py
+│   │   ├── seed_helpers.py
+│   │   └── session.py
+│   ├── errors
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── codes.cpython-312.pyc
+│   │   │   ├── exceptions.cpython-312.pyc
+│   │   │   └── handlers.cpython-312.pyc
+│   │   ├── codes.py
+│   │   ├── exceptions.py
+│   │   └── handlers.py
+│   ├── models
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   └── _base_mixins.cpython-312.pyc
+│   │   ├── _base_mixins.py
+│   │   ├── allocations
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── final_bye_schedule.cpython-312.pyc
+│   │   │   │   ├── final_game_schedule.cpython-312.pyc
+│   │   │   │   ├── saved_byes.cpython-312.pyc
+│   │   │   │   └── saved_games.cpython-312.pyc
+│   │   │   ├── final_bye_schedule.py
+│   │   │   ├── final_game_schedule.py
+│   │   │   ├── saved_byes.py
+│   │   │   └── saved_games.py
+│   │   ├── calendar
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── dates.cpython-312.pyc
+│   │   │   │   ├── default_times.cpython-312.pyc
+│   │   │   │   └── public_holidays.cpython-312.pyc
+│   │   │   ├── dates.py
+│   │   │   ├── default_times.py
+│   │   │   └── public_holidays.py
+│   │   ├── constraints
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── age_court_restrictions.cpython-312.pyc
+│   │   │   │   ├── age_round_constraints.cpython-312.pyc
+│   │   │   │   ├── allocation_settings.cpython-312.pyc
+│   │   │   │   ├── grade_court_restrictions.cpython-312.pyc
+│   │   │   │   └── grade_round_constraints.cpython-312.pyc
+│   │   │   ├── age_court_restrictions.py
+│   │   │   ├── age_round_constraints.py
+│   │   │   ├── allocation_settings.py
+│   │   │   ├── grade_court_restrictions.py
+│   │   │   └── grade_round_constraints.py
+│   │   ├── scheduling
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── run_constraints_snapshot.cpython-312.pyc
+│   │   │   │   ├── run_exports.cpython-312.pyc
+│   │   │   │   ├── scheduling_locks.cpython-312.pyc
+│   │   │   │   ├── scheduling_run_events.cpython-312.pyc
+│   │   │   │   └── scheduling_runs.cpython-312.pyc
+│   │   │   ├── run_constraints_snapshot.py
+│   │   │   ├── run_exports.py
+│   │   │   ├── scheduling_locks.py
+│   │   │   ├── scheduling_run_events.py
+│   │   │   └── scheduling_runs.py
+│   │   ├── staging
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── p2_allocations.cpython-312.pyc
+│   │   │   │   ├── p3_bye_allocations.cpython-312.pyc
+│   │   │   │   ├── p3_game_allocations.cpython-312.pyc
+│   │   │   │   └── staging_diffs.cpython-312.pyc
+│   │   │   ├── p2_allocations.py
+│   │   │   ├── p3_bye_allocations.py
+│   │   │   ├── p3_game_allocations.py
+│   │   │   └── staging_diffs.py
+│   │   ├── system
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── competitions.cpython-312.pyc
+│   │   │   │   ├── organisations.cpython-312.pyc
+│   │   │   │   ├── season_days.cpython-312.pyc
+│   │   │   │   ├── seasons.cpython-312.pyc
+│   │   │   │   ├── user_permissions.cpython-312.pyc
+│   │   │   │   └── users.cpython-312.pyc
+│   │   │   ├── competitions.py
+│   │   │   ├── organisations.py
+│   │   │   ├── season_days.py
+│   │   │   ├── seasons.py
+│   │   │   ├── user_permissions.py
+│   │   │   └── users.py
+│   │   ├── taxonomy
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── ages.cpython-312.pyc
+│   │   │   │   ├── grades.cpython-312.pyc
+│   │   │   │   └── teams.cpython-312.pyc
+│   │   │   ├── ages.py
+│   │   │   ├── grades.py
+│   │   │   └── teams.py
+│   │   ├── timeplan
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── round_dates.cpython-312.pyc
+│   │   │   │   ├── round_groups.cpython-312.pyc
+│   │   │   │   ├── round_settings.cpython-312.pyc
+│   │   │   │   ├── rounds.cpython-312.pyc
+│   │   │   │   └── time_slots.cpython-312.pyc
+│   │   │   ├── round_dates.py
+│   │   │   ├── round_groups.py
+│   │   │   ├── round_settings.py
+│   │   │   ├── rounds.py
+│   │   │   └── time_slots.py
+│   │   └── venues
+│   │       ├── __init__.py
+│   │       ├── __pycache__
+│   │       │   ├── __init__.cpython-312.pyc
+│   │       │   ├── court_rankings.cpython-312.pyc
+│   │       │   ├── court_times.cpython-312.pyc
+│   │       │   ├── courts.cpython-312.pyc
+│   │       │   └── venues.cpython-312.pyc
+│   │       ├── court_rankings.py
+│   │       ├── court_times.py
+│   │       ├── courts.py
+│   │       └── venues.py
+│   ├── repositories
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── base.cpython-312.pyc
+│   │   │   ├── mixins.cpython-312.pyc
+│   │   │   └── typing.cpython-312.pyc
+│   │   ├── allocations
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── final_bye_schedule_repository.cpython-312.pyc
+│   │   │   │   ├── final_game_schedule_repository.cpython-312.pyc
+│   │   │   │   ├── saved_bye_repository.cpython-312.pyc
+│   │   │   │   └── saved_game_repository.cpython-312.pyc
+│   │   │   ├── final_bye_schedule_repository.py
+│   │   │   ├── final_game_schedule_repository.py
+│   │   │   ├── saved_bye_repository.py
+│   │   │   └── saved_game_repository.py
+│   │   ├── base.py
+│   │   ├── calendar
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── date_repository.cpython-312.pyc
+│   │   │   │   ├── default_time_repository.cpython-312.pyc
+│   │   │   │   └── public_holiday_repository.cpython-312.pyc
+│   │   │   ├── date_repository.py
+│   │   │   ├── default_time_repository.py
+│   │   │   └── public_holiday_repository.py
+│   │   ├── constraints
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── age_court_restriction_repository.cpython-312.pyc
+│   │   │   │   ├── age_round_constraint_repository.cpython-312.pyc
+│   │   │   │   ├── allocation_setting_repository.cpython-312.pyc
+│   │   │   │   ├── grade_court_restriction_repository.cpython-312.pyc
+│   │   │   │   └── grade_round_constraint_repository.cpython-312.pyc
+│   │   │   ├── age_court_restriction_repository.py
+│   │   │   ├── age_round_constraint_repository.py
+│   │   │   ├── allocation_setting_repository.py
+│   │   │   ├── grade_court_restriction_repository.py
+│   │   │   └── grade_round_constraint_repository.py
+│   │   ├── mixins.py
+│   │   ├── scheduling
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── run_constraints_snapshot_repository.cpython-312.pyc
+│   │   │   │   ├── run_export_repository.cpython-312.pyc
+│   │   │   │   ├── scheduling_lock_repository.cpython-312.pyc
+│   │   │   │   ├── scheduling_run_event_repository.cpython-312.pyc
+│   │   │   │   └── scheduling_run_repository.cpython-312.pyc
+│   │   │   ├── run_constraints_snapshot_repository.py
+│   │   │   ├── run_export_repository.py
+│   │   │   ├── scheduling_lock_repository.py
+│   │   │   ├── scheduling_run_event_repository.py
+│   │   │   └── scheduling_run_repository.py
+│   │   ├── staging
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── p2_allocation_repository.cpython-312.pyc
+│   │   │   │   ├── p3_bye_allocation_repository.cpython-312.pyc
+│   │   │   │   ├── p3_game_allocation_repository.cpython-312.pyc
+│   │   │   │   └── staging_diff_repository.cpython-312.pyc
+│   │   │   ├── p2_allocation_repository.py
+│   │   │   ├── p3_bye_allocation_repository.py
+│   │   │   ├── p3_game_allocation_repository.py
+│   │   │   └── staging_diff_repository.py
+│   │   ├── system
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── competition_repository.cpython-312.pyc
+│   │   │   │   ├── organisation_repository.cpython-312.pyc
+│   │   │   │   ├── season_day_repository.cpython-312.pyc
+│   │   │   │   ├── season_repository.cpython-312.pyc
+│   │   │   │   ├── user_account_repository.cpython-312.pyc
+│   │   │   │   └── user_permission_repository.cpython-312.pyc
+│   │   │   ├── competition_repository.py
+│   │   │   ├── organisation_repository.py
+│   │   │   ├── season_day_repository.py
+│   │   │   ├── season_repository.py
+│   │   │   ├── user_account_repository.py
+│   │   │   └── user_permission_repository.py
+│   │   ├── taxonomy
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── age_repository.cpython-312.pyc
+│   │   │   │   ├── grade_repository.cpython-312.pyc
+│   │   │   │   └── team_repository.cpython-312.pyc
+│   │   │   ├── age_repository.py
+│   │   │   ├── grade_repository.py
+│   │   │   └── team_repository.py
+│   │   ├── timeplan
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── round_date_repository.cpython-312.pyc
+│   │   │   │   ├── round_group_repository.cpython-312.pyc
+│   │   │   │   ├── round_repository.cpython-312.pyc
+│   │   │   │   ├── round_setting_repository.cpython-312.pyc
+│   │   │   │   └── time_slot_repository.cpython-312.pyc
+│   │   │   ├── round_date_repository.py
+│   │   │   ├── round_group_repository.py
+│   │   │   ├── round_repository.py
+│   │   │   ├── round_setting_repository.py
+│   │   │   └── time_slot_repository.py
+│   │   ├── typing.py
+│   │   └── venues
+│   │       ├── __init__.py
+│   │       ├── __pycache__
+│   │       │   ├── __init__.cpython-312.pyc
+│   │       │   ├── court_ranking_repository.cpython-312.pyc
+│   │       │   ├── court_repository.cpython-312.pyc
+│   │       │   ├── court_time_repository.cpython-312.pyc
+│   │       │   └── venue_repository.cpython-312.pyc
+│   │       ├── court_ranking_repository.py
+│   │       ├── court_repository.py
+│   │       ├── court_time_repository.py
+│   │       └── venue_repository.py
+│   ├── schemas
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   │   ├── __init__.cpython-312.pyc
+│   │   │   ├── _base.cpython-312.pyc
+│   │   │   ├── enums.cpython-312.pyc
+│   │   │   └── types.cpython-312.pyc
+│   │   ├── _base.py
+│   │   ├── allocations
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── final_bye_schedule.cpython-312.pyc
+│   │   │   │   ├── final_game_schedule.cpython-312.pyc
+│   │   │   │   ├── saved_byes.cpython-312.pyc
+│   │   │   │   └── saved_games.cpython-312.pyc
+│   │   │   ├── final_bye_schedule.py
+│   │   │   ├── final_game_schedule.py
+│   │   │   ├── saved_byes.py
+│   │   │   └── saved_games.py
+│   │   ├── calendar
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── dates.cpython-312.pyc
+│   │   │   │   ├── default_times.cpython-312.pyc
+│   │   │   │   └── public_holidays.cpython-312.pyc
+│   │   │   ├── dates.py
+│   │   │   ├── default_times.py
+│   │   │   └── public_holidays.py
+│   │   ├── constraints
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── age_court_restrictions.cpython-312.pyc
+│   │   │   │   ├── age_round_constraints.cpython-312.pyc
+│   │   │   │   ├── allocation_settings.cpython-312.pyc
+│   │   │   │   ├── grade_court_restrictions.cpython-312.pyc
+│   │   │   │   └── grade_round_constraints.cpython-312.pyc
+│   │   │   ├── age_court_restrictions.py
+│   │   │   ├── age_round_constraints.py
+│   │   │   ├── allocation_settings.py
+│   │   │   ├── grade_court_restrictions.py
+│   │   │   └── grade_round_constraints.py
+│   │   ├── enums.py
+│   │   ├── scheduling
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── run_constraints_snapshot.cpython-312.pyc
+│   │   │   │   ├── run_exports.cpython-312.pyc
+│   │   │   │   ├── scheduling_locks.cpython-312.pyc
+│   │   │   │   ├── scheduling_run_events.cpython-312.pyc
+│   │   │   │   └── scheduling_runs.cpython-312.pyc
+│   │   │   ├── run_constraints_snapshot.py
+│   │   │   ├── run_exports.py
+│   │   │   ├── scheduling_locks.py
+│   │   │   ├── scheduling_run_events.py
+│   │   │   └── scheduling_runs.py
+│   │   ├── staging
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── p2_allocations.cpython-312.pyc
+│   │   │   │   ├── p3_bye_allocations.cpython-312.pyc
+│   │   │   │   ├── p3_game_allocations.cpython-312.pyc
+│   │   │   │   └── staging_diffs.cpython-312.pyc
+│   │   │   ├── p2_allocations.py
+│   │   │   ├── p3_bye_allocations.py
+│   │   │   ├── p3_game_allocations.py
+│   │   │   └── staging_diffs.py
+│   │   ├── system
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── competitions.cpython-312.pyc
+│   │   │   │   ├── organisations.cpython-312.pyc
+│   │   │   │   ├── season_days.cpython-312.pyc
+│   │   │   │   ├── seasons.cpython-312.pyc
+│   │   │   │   ├── user_permissions.cpython-312.pyc
+│   │   │   │   └── users.cpython-312.pyc
+│   │   │   ├── competitions.py
+│   │   │   ├── organisations.py
+│   │   │   ├── season_days.py
+│   │   │   ├── seasons.py
+│   │   │   ├── user_permissions.py
+│   │   │   └── users.py
+│   │   ├── taxonomy
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── ages.cpython-312.pyc
+│   │   │   │   ├── grades.cpython-312.pyc
+│   │   │   │   └── teams.cpython-312.pyc
+│   │   │   ├── ages.py
+│   │   │   ├── grades.py
+│   │   │   └── teams.py
+│   │   ├── timeplan
+│   │   │   ├── __init__.py
+│   │   │   ├── __pycache__
+│   │   │   │   ├── __init__.cpython-312.pyc
+│   │   │   │   ├── round_dates.cpython-312.pyc
+│   │   │   │   ├── round_groups.cpython-312.pyc
+│   │   │   │   ├── round_settings.cpython-312.pyc
+│   │   │   │   ├── rounds.cpython-312.pyc
+│   │   │   │   └── time_slots.cpython-312.pyc
+│   │   │   ├── round_dates.py
+│   │   │   ├── round_groups.py
+│   │   │   ├── round_settings.py
+│   │   │   ├── rounds.py
+│   │   │   └── time_slots.py
+│   │   ├── types.py
+│   │   └── venues
+│   │       ├── __init__.py
+│   │       ├── __pycache__
+│   │       │   ├── __init__.cpython-312.pyc
+│   │       │   ├── court_rankings.cpython-312.pyc
+│   │       │   ├── court_times.cpython-312.pyc
+│   │       │   ├── courts.cpython-312.pyc
+│   │       │   └── venues.cpython-312.pyc
+│   │       ├── court_rankings.py
+│   │       ├── court_times.py
+│   │       ├── courts.py
+│   │       └── venues.py
+│   └── utils
+│       ├── __init__.py
+│       ├── __pycache__
+│       │   ├── __init__.cpython-312.pyc
+│       │   ├── ids.cpython-312.pyc
+│       │   ├── io.cpython-312.pyc
+│       │   ├── logging_tools.cpython-312.pyc
+│       │   ├── time.cpython-312.pyc
+│       │   └── validators.cpython-312.pyc
+│       ├── ids.py
+│       ├── io.py
+│       ├── logging_tools.py
+│       ├── time.py
+│       └── validators.py
+├── backups
+│   └── dev
+│       └── 2025
+│           └── 10
+│               └── 06
+│                   └── 20-39-50_dev.sql
+├── docker
+│   ├── healthcheck
+│   └── initdb
+│       ├── 01-create-dbs-and-role.sql
+│       └── 02-extensions-and-grants.sql
+├── docker-compose.yml
+├── docs
+│   ├── ADR
+│   │   └── 0001-foundation.md
+│   ├── CODEX_PROMPTS
+│   │   ├── batch1_config.md
+│   │   ├── batch2_errors_handlers.md
+│   │   ├── batch3_db.md
+│   │   ├── batch4_models_schemas.md
+│   │   ├── batch5_repos.md
+│   │   ├── batch6_cli_entrypoints.md
+│   │   ├── batch7_utils.md
+│   │   ├── batch8_unit_tests.md
+│   │   ├── batch9_integration_tests.md
+│   │   └── skeleton_bootstrap.prompt.md
+│   ├── DEVELOPMENT.md
+│   ├── POLICY_DIGEST.md
+│   └── SETUP.md
+├── logs
+├── manage.py
+├── migrations
+│   ├── README.md
+│   ├── __pycache__
+│   │   └── env.cpython-312.pyc
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions
+│       ├── 20251003_0701_ddc1645c7dfa_initial_schema.py
+│       ├── 20251006_0957_b01edbc4c937_noop_plumbing_check.py
+│       ├── 20251008_0203_460e2199c8df_test.py
+│       └── __pycache__
+│           ├── 20251003_0701_ddc1645c7dfa_initial_schema.cpython-312.pyc
+│           ├── 20251006_0957_b01edbc4c937_noop_plumbing_check.cpython-312.pyc
+│           └── 20251008_0203_460e2199c8df_test.cpython-312.pyc
+├── mypy.ini
+├── private_documentation
+│   ├── code_debugger
+│   │   ├── coding_standards.md
+│   │   └── report_interpreter.md
+│   └── project_files
+│       ├── README.md
+│       ├── codex_workflow.md
+│       ├── coding_standards.md
+│       ├── company_wide_knowledge_manual.md
+│       ├── core_instructions.md
+│       ├── custom_instructions.md
+│       ├── database_erd.md
+│       ├── documentation_standards.md
+│       ├── error_handling_guidelines.md
+│       ├── glossary.md
+│       ├── scheduling_engine_internal_process_manual.md
+│       └── testing_standards.md
+├── project_schema.txt
+├── pyproject.toml
+├── pyrightconfig.json
 ├── pytest.ini
+├── reports
+│   └── 2025
+│       └── 10
+│           ├── 08
+│           │   ├── 13-25-35_quality_report.txt
+│           │   ├── 22-36-22_quality_report.md
+│           │   ├── 23-53-07_quality_report.md
+│           │   └── Example Markdown.md
+│           ├── 09
+│           │   ├── 00-33-01_quality_report.md
+│           │   ├── 00-49-22_test_report.txt
+│           │   ├── 19-03-44_test_report.txt
+│           │   └── 19-04-24_test_report.txt
+│           ├── 14
+│           │   ├── 11-15-06_quality_report.md
+│           │   ├── 14-52-56_quality_report.md
+│           │   ├── 15-31-15_quality_report.md
+│           │   └── 15-53-27_test_report.txt
+│           └── 15
+│               ├── 10-50-40_quality_report.md
+│               ├── 10-51-22_test_report.md
+│               ├── 10-52-35_pre_commit_report.md
+│               ├── 13-00-48_quality_report.md
+│               ├── 13-01-03_test_report.md
+│               ├── 13-01-20_pre_commit_report.md
+│               ├── 13-40-45_quality_report.md
+│               ├── 13-40-58_test_report.md
+│               ├── 13-45-42_quality_report.md
+│               ├── 13-45-53_test_report.md
+│               ├── 13-46-07_pre_commit_report.md
+│               ├── 15-51-49_pre_commit_report.md
+│               ├── 15-53-36_pre_commit_report.md
+│               ├── 16-20-10_pre_commit_report.md
+│               ├── 16-21-31_quality_report.md
+│               ├── 16-21-40_test_report.md
+│               ├── 16-21-55_pre_commit_report.md
+│               ├── 16-34-45_pre_commit_report.md
+│               └── 16-43-35_pre_commit_report.md
+├── requirements.txt
+├── run.py
+├── scripts
+│   ├── db_dump_restore.sh
+│   ├── migrations
+│   │   └── versions
+│   └── wizards
+│       ├── db_wizard.py
+│       ├── migration_wizard.py
+│       └── test_wizard.py
+├── sql
+│   ├── helpers.sql
+│   └── seed_data.sql
 └── tests
     ├── __init__.py
     ├── __pycache__
@@ -21,7 +588,8 @@
     │   │   ├── test_db_connect.cpython-312-pytest-8.4.2.pyc
     │   │   ├── test_migrations.cpython-312-pytest-8.4.2.pyc
     │   │   ├── test_seed_data.cpython-312-pytest-8.4.2.pyc
-    │   │   └── test_seed_flow.cpython-312-pytest-8.4.2.pyc
+    │   │   ├── test_seed_flow.cpython-312-pytest-8.4.2.pyc
+    │   │   └── test_seeding_idempotent.cpython-312-pytest-8.4.2.pyc
     │   ├── repositories
     │   │   ├── system
     │   │   │   ├── __pycache__
@@ -62,7 +630,8 @@
     │   ├── test_db_connect.py
     │   ├── test_migrations.py
     │   ├── test_seed_data.py
-    │   └── test_seed_flow.py
+    │   ├── test_seed_flow.py
+    │   └── test_seeding_idempotent.py
     ├── test_cli_entrypoints.py
     ├── test_smoke.py
     ├── unit
@@ -89,3 +658,5 @@
         ├── test_time.py
         ├── test_time_helpers.py
         └── test_validators.py
+
+123 directories, 537 files

@@ -55,3 +55,6 @@ Icon?
 reports/
 private_documentation/
 docs/CODEX_PROMPTS/
+
+# Database dumps & backups
+backups/

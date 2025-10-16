@@ -44,36 +44,29 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      # Cache pre-commit hook environments for speed
+      - name: Cache pre-commit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-precommit-${{ env.PYTHON_VERSION }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-precommit-${{ env.PYTHON_VERSION }}-
+
+      # (Optional) Cache pip in case some hooks need wheels at build time
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/pyproject.toml', '**/ruff.toml', '**/mypy.ini') }}
+          key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/pyproject.toml', '**/requirements*.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-
 
-      - name: Install deps (dev)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]" || true
-          # Fallback for first run if pyproject extras not wired yet
-          pip install ruff black mypy sqlfluff
-
-      - name: Ruff (lint + imports)
-        run: ruff check .
-
-      - name: Black (check)
-        run: black --check .
-
-      - name: Mypy (strict)
-        run: mypy .
-
-      - name: SQLFluff (non-blocking)
-        if: always()
-        run: |
-          if [ -d "sql" ]; then
-            sqlfluff lint sql || true
-          fi
+      # IMPORTANT: Run your local hooks exactly as you do locally
+      - name: Run pre-commit (all hooks, all files)
+        uses: pre-commit/action@v3.0.1
+        with:
+          extra_args: --all-files
 
   tests:
     name: tests
