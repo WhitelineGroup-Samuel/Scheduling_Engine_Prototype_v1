@@ -123,8 +123,12 @@ jobs:
       - name: Install deps (runtime + pytest)
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" || true
-          pip install SQLAlchemy alembic pydantic 'psycopg[binary]' psycopg-pool python-dotenv typer pytest pytest-cov
+          # Install your project with dev extras; FAIL if this fails (no "|| true")
+          pip install -e ".[dev]"
+          # Ensure EmailStr works by installing the email extra for Pydantic
+          pip install "pydantic[email]"
+          # (Optional) Explicit pins for stubs used by type checking in tests
+          pip install types-requests types-python-dateutil
 
       # Optional: Run Migrations here once Alembic is wired
       # - name: Alembic upgrade head
