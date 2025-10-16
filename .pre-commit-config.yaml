@@ -25,13 +25,21 @@ repos:
       - id: black
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.13.0
+    rev: v1.18.2
     hooks:
-      - id: mypy
+    -   id: mypy
+        args:
+          - --config-file=mypy.ini
+          # (Optional) Match CI scope exactly; or omit to let mypy read targets from config
+          # - app
+          # - tests
+          # - scripts
         additional_dependencies:
-          - sqlalchemy[mypy]
-          - pydantic>=2.7,<3.0
-        exclude: ^(migrations/|tests/fixtures/)
+          # Ensure mypy can import the plugins & stubs it needs during the hook run
+          - sqlalchemy[mypy]==2.0.43
+          - pydantic==2.11.9
+          - types-requests==2.32.4.20250913
+          - types-python-dateutil==2.9.0.20251008
 
   - repo: https://github.com/sqlfluff/sqlfluff
     rev: 3.0.5

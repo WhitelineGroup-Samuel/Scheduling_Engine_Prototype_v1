@@ -27,7 +27,7 @@ dependencies = [
   # Runtime
   "SQLAlchemy>=2.0,<3.0",
   "alembic>=1.13,<2.0",
-  "pydantic>=2.7,<3.0",
+  "pydantic[email]>=2.11,<3.0",
   "python-dotenv>=1.0,<2.0",
   "click>8.1.7,<8.2",
   "typer>=0.12,<0.13",
@@ -74,7 +74,7 @@ target-version = ["py312"]
 [tool.ruff]
 target-version = "py312"
 line-length = 150
-src = ["app", "tests"]
+src = ["app", "tests", "scripts"]
 extend-exclude = [
   ".venv",
   ".git",
@@ -84,24 +84,26 @@ extend-exclude = [
   "dist",
   "build",
   "migrations",
-  "scripts",
-  "sql",
+  "sql",                      # handled by SQLFluff
   "project_files",
   "docs",
+  "private_documentation",
   "logs",
+  "reports",
+  "backups",
 ]
 
 [tool.ruff.format]
 quote-style = "double"
 
 [tool.ruff.lint]
-extend-select = ["E", "F", "I", "UP", "B", "C4", "ICN", "SIM", "ARG"]     # isort via Ruff
-ignore = ["D203"] # example docstring rule prefs; adjust later
+extend-select = ["E", "F", "I", "UP", "B", "C4", "ICN", "ARG"]     # isort via Ruff
+ignore = ["D203"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["ARG001", "ARG002", "UP022", "B017", "UP035", "E501"]
-"migrations/**" = ["E501", "SIM103", "SIM105", "ARG001", "ARG002"]
-"scripts/**" = ["E501", "SIM105", "SIM108", "C401", "E702", "ARG001", "ARG002", "UP022"]
+"migrations/**" = ["E501", "SIM103", "SIM105", "SIM108", "ARG001", "ARG002"]
+"scripts/**" = ["E501", "SIM103", "SIM105", "SIM108", "C401", "E702", "ARG001", "ARG002", "UP022"]
 "app/models/**" = ["E501"]
 
 [tool.ruff.lint.isort]
@@ -129,3 +131,32 @@ tab_space_size = 2
 
 [tool.sqlfluff.layout.type.comma]
 line_position = "trailing"
+
+[tool.pyright]
+# Match mypy's intent but keep editor fast:
+typeCheckingMode = "basic"
+pythonVersion = "3.12"
+
+# Ensure Pyright uses your workspace venv (same as mypy/pre-commit/CI)
+venvPath = "."
+venv = ".venv"
+
+# Mirror mypy's excludes to avoid editor-only noise
+exclude = [
+  "migrations",
+  "tests/fixtures",
+  "scripts/wizards",
+  "reports",
+  "backups",
+  "private_documentation",
+  "docs",
+  "sql",
+  "logs",
+  ".venv",
+  ".mypy_cache",
+  ".ruff_cache",
+  ".pytest_cache",
+]
+
+# Quieter when libraries lack stubs; mypy handles typing in CI anyway
+reportMissingTypeStubs = "none"
